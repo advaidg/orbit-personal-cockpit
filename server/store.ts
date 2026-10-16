@@ -24,6 +24,8 @@ export async function initStore() {
     for (const s of demoSignals) await pool.query('INSERT INTO signals(id,user_id,source,source_id,sender,title,summary,occurred_at,category,priority,read,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT(id) DO NOTHING', [s.id,s.userId,s.source,s.sourceId,s.sender,s.title,s.summary,s.occurredAt,s.category,s.priority,s.read,s.metadata || {}]);
     for (const t of demoTasks) await pool.query('INSERT INTO tasks(id,user_id,title,note,due_at,priority,status,source,source_signal_id,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(id) DO NOTHING', [t.id,t.userId,t.title,t.note || null,t.dueAt || null,t.priority,t.status,t.source,t.sourceSignalId || null,t.createdAt]);
     await pool.query('INSERT INTO briefs(user_id,data,generated_at) VALUES($1,$2,$3) ON CONFLICT(user_id) DO NOTHING', [demoUser.id,demoBrief,demoBrief.generatedAt]);
+  } else {
+    await pool.query('DELETE FROM users WHERE id=$1', [demoUser.id]);
   }
 }
 
@@ -79,5 +81,10 @@ export async function getBrief(userId: string) {
 }
 export async function saveBrief(userId: string, brief: Brief) {
   if (!pool) memory.briefs.set(userId, brief); else await pool.query('INSERT INTO briefs(user_id,data,generated_at) VALUES($1,$2,$3) ON CONFLICT(user_id) DO UPDATE SET data=$2,generated_at=$3', [userId, brief, brief.generatedAt]);
+}
+export async function pruneOldSignals() {
+  if (!pool) return;
+  const days = Math.max(1, Number(process.env.SIGNAL_RETENTION_DAYS || 30));
+  await pool.query("DELETE FROM signals WHERE occurred_at < NOW() - ($1 * INTERVAL '1 day')", [days]);
 }
 export { pool };

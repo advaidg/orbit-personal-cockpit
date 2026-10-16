@@ -22,7 +22,9 @@ export async function syncGmailConnection(connection: Connection) {
   if (!connection.encryptedTokens) return;
   const auth = oauthClient(); auth.setCredentials(decrypt<GoogleTokens>(connection.encryptedTokens));
   const gmail = google.gmail({ version: 'v1', auth });
-  const list = await gmail.users.messages.list({ userId: 'me', q: 'newer_than:7d', maxResults: 35 });
+  const lookbackDays = Math.max(1, Number(process.env.SYNC_LOOKBACK_DAYS || 7));
+  const maxResults = Math.min(100, Math.max(1, Number(process.env.SYNC_MAX_MESSAGES || 35)));
+  const list = await gmail.users.messages.list({ userId: 'me', q: `newer_than:${lookbackDays}d`, maxResults });
   const messages = await Promise.all((list.data.messages || []).map(async ({ id }) => {
     const { data } = await gmail.users.messages.get({ userId: 'me', id: id!, format: 'full' });
     const headers = Object.fromEntries((data.payload?.headers || []).map(h => [h.name?.toLowerCase(), h.value]));

@@ -11,6 +11,7 @@
     "check": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "latest",
     "@vitejs/plugin-react": "latest",
     "cookie-parser": "latest",
     "date-fns": "latest",

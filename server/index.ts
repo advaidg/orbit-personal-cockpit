@@ -10,8 +10,9 @@ import { google } from 'googleapis';
 import { encrypt, signSession, verifySession } from './crypto.js';
 import { demoUser } from './demo.js';
 import { oauthClient, syncUser } from './gmail.js';
-import { createTask, getBrief, getConnections, getSignals, getTasks, getUser, initStore, pool, updateTask, upsertConnection, upsertUser } from './store.js';
+import { createTask, getBrief, getConnections, getSignals, getTasks, getUser, initStore, pool, pruneOldSignals, updateTask, upsertConnection, upsertUser } from './store.js';
 import type { Connection, DashboardData, User } from './types.js';
+import { aiStatus } from './ai.js';
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -24,6 +25,7 @@ function userId(req: express.Request) { return verifySession(req.cookies.orbit_s
 function requireUser(req: express.Request, res: express.Response, next: express.NextFunction) { const id = userId(req); if (!id) return res.status(401).json({ error: 'Not authenticated' }); res.locals.userId = id; next(); }
 
 app.get('/health', (_req, res) => res.json({ ok: true, database: pool ? 'postgres' : 'memory', time: new Date().toISOString() }));
+app.get('/api/config', (_req, res) => res.json({ gmailConfigured:!!process.env.GOOGLE_CLIENT_ID&&!!process.env.GOOGLE_CLIENT_SECRET, ai:aiStatus(), privacy:{rawBodiesStored:false,signalRetentionDays:Number(process.env.SIGNAL_RETENTION_DAYS||30)}, demoMode:process.env.DEMO_MODE==='true' }));
 app.get('/auth/google', (req, res) => {
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) return res.redirect('/?setup=gmail');
   const state = crypto.randomBytes(20).toString('hex');
@@ -68,5 +70,7 @@ if (production) { const root = path.resolve(path.dirname(fileURLToPath(import.me
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => { console.error(error); res.status(500).json({ error: error instanceof Error ? error.message : 'Unexpected error' }); });
 
 await initStore();
+await pruneOldSignals();
 cron.schedule(process.env.SYNC_CRON || '*/30 * * * *', async () => { if (!pool) return; const { rows } = await pool.query("SELECT DISTINCT user_id FROM connections WHERE status='connected'"); for (const row of rows) await syncUser(row.user_id).catch(console.error); });
+cron.schedule('17 3 * * *', () => pruneOldSignals().catch(console.error));
 app.listen(port, () => console.log(`Orbit listening on http://localhost:${port}`));

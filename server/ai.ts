@@ -1,48 +1,66 @@
+import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import type { Brief, Signal } from './types.js';
 
-const client = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+type JsonSchema = Record<string, unknown>;
+type TriageItem = { sourceId:string; title:string; sender:string; summary:string; category:Signal['category']; priority:Signal['priority']; task:string|null };
 
-export async function understandMessages(messages: Array<{ id: string; from: string; subject: string; date: string; text: string }>) {
-  if (!messages.length) return [];
-  if (!client) return messages.map((m) => ({
-    sourceId: m.id, title: m.subject, sender: m.from, summary: m.text.slice(0, 170) || 'Open this message for details.',
-    category: /no.?reply|newsletter|digest/i.test(m.from) ? 'noise' : /invoice|receipt|payment|bill/i.test(m.subject) ? 'money' : /flight|hotel|trip|reservation/i.test(m.subject) ? 'travel' : 'action',
-    priority: /urgent|today|asap|action required/i.test(`${m.subject} ${m.text}`) ? 'now' : 'soon',
-    task: /no.?reply|newsletter|digest/i.test(m.from) ? null : m.subject
-  }));
-
-  const response = await client.responses.create({
-    model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
-    input: `You are the intelligence layer for a personal operations dashboard. Classify these recent emails. Be selective: newsletters and FYI messages should not become tasks. Summaries must be factual and under 22 words.\n\n${JSON.stringify(messages.map(m => ({ ...m, text: m.text.slice(0, 1800) })))}`,
-    text: { format: { type: 'json_schema', name: 'email_triage', strict: true, schema: {
-      type: 'object', additionalProperties: false, required: ['items'], properties: { items: { type: 'array', items: {
-        type: 'object', additionalProperties: false, required: ['sourceId','title','sender','summary','category','priority','task'], properties: {
-          sourceId: { type: 'string' }, title: { type: 'string' }, sender: { type: 'string' }, summary: { type: 'string' },
-          category: { type: 'string', enum: ['action','waiting','calendar','money','travel','people','noise'] },
-          priority: { type: 'string', enum: ['now','soon','later'] }, task: { anyOf: [{ type: 'string' }, { type: 'null' }] }
-        }
-      } } }
-    } } }
-  });
-  return JSON.parse(response.output_text).items;
+function selectedProvider() {
+  if (process.env.AI_ENABLED === 'false') return 'rules';
+  if (process.env.AI_PROVIDER) return process.env.AI_PROVIDER;
+  if (process.env.OPENAI_API_KEY) return 'openai';
+  if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
+  return 'rules';
 }
 
-export async function buildBrief(signals: Signal[]): Promise<Brief> {
-  const active = signals.filter(s => s.category !== 'noise').slice(0, 30);
-  if (!client) return {
-    headline: active.length ? `${active.filter(s => s.priority === 'now').length || 'A few'} things need your attention.` : 'You are all caught up.',
-    narrative: active.slice(0, 3).map(s => s.summary).join(' ') || 'No meaningful changes since your last check-in.',
-    wins: ['Your information is in one place'], watchouts: active.filter(s => s.priority === 'now').slice(0, 2).map(s => s.title), generatedAt: new Date().toISOString()
-  };
-  const response = await client.responses.create({
-    model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
-    input: `Write a calm executive brief from these signals. Lead with decisions and deadlines, not inbox counts. Never invent facts.\n${JSON.stringify(active)}`,
-    text: { format: { type: 'json_schema', name: 'daily_brief', strict: true, schema: {
-      type: 'object', additionalProperties: false, required: ['headline','narrative','wins','watchouts'], properties: {
-        headline: { type: 'string' }, narrative: { type: 'string' }, wins: { type: 'array', items: { type: 'string' }, maxItems: 3 }, watchouts: { type: 'array', items: { type: 'string' }, maxItems: 3 }
-      }
-    } } }
-  });
-  return { ...JSON.parse(response.output_text), generatedAt: new Date().toISOString() };
+function parseJson(text: string) {
+  const clean = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  return JSON.parse(clean);
 }
+
+async function generateJson(prompt: string, schemaName: string, schema: JsonSchema) {
+  const provider = selectedProvider();
+  if (provider === 'openai') {
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const response = await client.responses.create({ model:process.env.OPENAI_MODEL||'gpt-4.1-mini', input:prompt, text:{format:{type:'json_schema',name:schemaName,strict:true,schema}} });
+    return parseJson(response.output_text);
+  }
+  if (provider === 'anthropic') {
+    const client = new Anthropic({ apiKey:process.env.ANTHROPIC_API_KEY });
+    const response = await client.messages.create({ model:process.env.ANTHROPIC_MODEL||'claude-sonnet-4-5', max_tokens:1800, system:'Return only valid JSON matching the supplied schema. Do not use markdown fences.', messages:[{role:'user',content:`${prompt}\n\nJSON schema:\n${JSON.stringify(schema)}`}] });
+    const block = response.content.find(item=>item.type==='text');
+    if (!block || block.type!=='text') throw new Error('Anthropic returned no text');
+    return parseJson(block.text);
+  }
+  if (provider === 'openai-compatible') {
+    if (!process.env.AI_BASE_URL || !process.env.AI_COMPATIBLE_MODEL) throw new Error('AI_BASE_URL and AI_COMPATIBLE_MODEL are required');
+    const client = new OpenAI({apiKey:process.env.AI_COMPATIBLE_API_KEY||'local',baseURL:process.env.AI_BASE_URL});
+    const response = await client.chat.completions.create({model:process.env.AI_COMPATIBLE_MODEL,messages:[{role:'system',content:'Return only valid JSON. Do not use markdown fences.'},{role:'user',content:`${prompt}\n\nJSON schema:\n${JSON.stringify(schema)}`}],response_format:{type:'json_object'}});
+    return parseJson(response.choices[0]?.message.content||'{}');
+  }
+  throw new Error(`AI provider ${provider} is not configured`);
+}
+
+function rulesTriage(messages:Array<{id:string;from:string;subject:string;date:string;text:string}>):TriageItem[]{
+  return messages.map(m=>{const combined=`${m.subject} ${m.text}`;const noise=/no.?reply|newsletter|digest|unsubscribe/i.test(`${m.from} ${combined}`);const category:Signal['category']=noise?'noise':/invoice|receipt|payment|bill|renewal/i.test(combined)?'money':/flight|hotel|trip|reservation|boarding/i.test(combined)?'travel':/meeting|calendar|rescheduled/i.test(combined)?'calendar':'action';return{sourceId:m.id,title:m.subject,sender:m.from,summary:m.text.slice(0,170)||'Open this message for details.',category,priority:/urgent|today|asap|action required|deadline/i.test(combined)?'now':category==='noise'?'later':'soon',task:noise?null:m.subject};});
+}
+
+const triageSchema:JsonSchema={type:'object',additionalProperties:false,required:['items'],properties:{items:{type:'array',items:{type:'object',additionalProperties:false,required:['sourceId','title','sender','summary','category','priority','task'],properties:{sourceId:{type:'string'},title:{type:'string'},sender:{type:'string'},summary:{type:'string'},category:{type:'string',enum:['action','waiting','calendar','money','travel','people','noise']},priority:{type:'string',enum:['now','soon','later']},task:{anyOf:[{type:'string'},{type:'null'}]}}}}}};
+const briefSchema:JsonSchema={type:'object',additionalProperties:false,required:['headline','narrative','wins','watchouts'],properties:{headline:{type:'string'},narrative:{type:'string'},wins:{type:'array',items:{type:'string'},maxItems:3},watchouts:{type:'array',items:{type:'string'},maxItems:3}}};
+
+export async function understandMessages(messages:Array<{id:string;from:string;subject:string;date:string;text:string}>):Promise<TriageItem[]>{
+  if(!messages.length)return[];
+  if(selectedProvider()==='rules')return rulesTriage(messages);
+  const chars=Math.min(8000,Math.max(200,Number(process.env.AI_INPUT_CHARS_PER_ITEM||1800)));
+  const result=await generateJson(`You are the intelligence layer for a private personal operations dashboard. Classify these recent emails. Be selective: newsletters and FYI messages must not become tasks. Summaries must be factual and under 22 words. Never invent a deadline.\n\n${JSON.stringify(messages.map(m=>({...m,text:m.text.slice(0,chars)})))}`,'email_triage',triageSchema);
+  return result.items as TriageItem[];
+}
+
+export async function buildBrief(signals:Signal[]):Promise<Brief>{
+  const active=signals.filter(s=>s.category!=='noise').slice(0,30);
+  if(selectedProvider()==='rules')return{headline:active.length?`${active.filter(s=>s.priority==='now').length||'A few'} things need your attention.`:'You are all caught up.',narrative:active.slice(0,3).map(s=>s.summary).join(' ')||'No meaningful changes since your last check-in.',wins:[],watchouts:active.filter(s=>s.priority==='now').slice(0,2).map(s=>s.title),generatedAt:new Date().toISOString()};
+  const result=await generateJson(`Write a calm executive brief from these normalized signals. Lead with decisions and deadlines, not inbox counts. Never invent facts.\n${JSON.stringify(active)}`,'daily_brief',briefSchema);
+  return{...result,generatedAt:new Date().toISOString()} as Brief;
+}
+
+export function aiStatus(){const provider=selectedProvider();return{provider,external:provider!=='rules',configured:provider==='rules'||provider==='openai'&&!!process.env.OPENAI_API_KEY||provider==='anthropic'&&!!process.env.ANTHROPIC_API_KEY||provider==='openai-compatible'&&!!process.env.AI_BASE_URL&&!!process.env.AI_COMPATIBLE_MODEL};}

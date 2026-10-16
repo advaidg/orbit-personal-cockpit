@@ -14,7 +14,7 @@ Most dashboards show more data. Orbit makes fewer demands on your attention.
 - **A focus queue, not another inbox** — AI promotes only items that need a decision or action.
 - **Waiting-on memory** — keep track of commitments other people owe you.
 - **Quiet by default** — newsletters and passive updates are measured as noise filtered, not work created.
-- **Useful before setup** — a polished demo workspace makes the product easy to evaluate and share.
+- **Honest before setup** — a guided connection screen appears until real sources are connected; sample data is explicitly opt-in.
 - **Self-hostable** — PostgreSQL, encrypted OAuth tokens, a Dockerfile, and Railway configuration are included.
 
 ## Current MVP
@@ -24,7 +24,7 @@ Most dashboards show more data. Orbit makes fewer demands on your attention.
 - Gmail OAuth with read-only scope and encrypted refresh tokens
 - Automatic sync every 30 minutes, configurable with `SYNC_CRON`
 - AI classification into action, waiting, calendar, money, travel, people, and noise
-- Rule-based fallback when no OpenAI API key is configured
+- OpenAI, Anthropic, and OpenAI-compatible model support with a private rules-only mode
 - Focus queue with manual capture and completion
 - PostgreSQL in production; zero-setup in-memory demo locally
 - Health check and production Docker image
@@ -37,7 +37,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. The demo works immediately. The API runs on port 3000.
+Open `http://localhost:5173`. Set `DEMO_MODE=true` only if you explicitly want the visibly labeled sample workspace. Otherwise Orbit starts empty and waits for real sources. The API runs on port 3000.
 
 For a production-like local install with PostgreSQL:
 
@@ -83,12 +83,17 @@ The detailed product thesis—including Waiting On, People, Life Admin, decision
 
 The long-term idea is a private, portable attention layer—not a replacement for the tools where the work happens.
 
+See [AI providers](docs/AI_PROVIDERS.md) and [data and privacy](docs/DATA_AND_PRIVACY.md) for the complete operating model.
+
 ## Security posture
 
 - Gmail requests `gmail.readonly`; Orbit does not send or delete email.
 - OAuth tokens are encrypted with AES-256-GCM before persistence.
 - `APP_ENCRYPTION_KEY` and `SESSION_SECRET` must be unique production secrets.
 - API credentials never ship to the browser.
+- Raw email bodies are processed transiently and are never stored in PostgreSQL.
+- Normalized signals expire after `SIGNAL_RETENTION_DAYS` (30 by default).
+- `AI_PROVIDER=rules` keeps message content away from external AI providers.
 - This MVP uses an encrypted signed browser session. Before a large public launch, add rate limiting, CSRF protection for mutations, account deletion/export, and a formal privacy policy.
 
 ## Contributing
