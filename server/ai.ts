@@ -1,16 +1,26 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
-import type { Brief, Signal } from './types.js';
+import type { AiProvider, Brief, Signal, Task, UserSettings } from './types.js';
 
 type JsonSchema = Record<string, unknown>;
 type TriageItem = { sourceId:string; title:string; sender:string; summary:string; category:Signal['category']; priority:Signal['priority']; task:string|null };
 
-function selectedProvider() {
+function selectedProvider(preferred?: AiProvider): AiProvider {
   if (process.env.AI_ENABLED === 'false') return 'rules';
-  if (process.env.AI_PROVIDER) return process.env.AI_PROVIDER;
+  if (preferred) return preferred;
+  if (process.env.AI_PROVIDER) return process.env.AI_PROVIDER as AiProvider;
   if (process.env.OPENAI_API_KEY) return 'openai';
   if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
   return 'rules';
+}
+
+export function aiProviders() {
+  return [
+    { id:'rules' as const, label:'Private rules', configured:true, external:false },
+    { id:'openai' as const, label:'OpenAI API', configured:!!process.env.OPENAI_API_KEY, external:true },
+    { id:'anthropic' as const, label:'Anthropic API', configured:!!process.env.ANTHROPIC_API_KEY, external:true },
+    { id:'openai-compatible' as const, label:'Local / compatible', configured:!!process.env.AI_BASE_URL&&!!process.env.AI_COMPATIBLE_MODEL, external:!!process.env.AI_BASE_URL&&!/^https?:\/\/(localhost|127\.0\.0\.1|host\.docker\.internal)(:|\/)/.test(process.env.AI_BASE_URL) }
+  ];
 }
 
 function parseJson(text: string) {
@@ -18,8 +28,7 @@ function parseJson(text: string) {
   return JSON.parse(clean);
 }
 
-async function generateJson(prompt: string, schemaName: string, schema: JsonSchema) {
-  const provider = selectedProvider();
+async function generateJson(prompt: string, schemaName: string, schema: JsonSchema, provider: AiProvider) {
   if (provider === 'openai') {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const response = await client.responses.create({ model:process.env.OPENAI_MODEL||'gpt-4.1-mini', input:prompt, text:{format:{type:'json_schema',name:schemaName,strict:true,schema}} });
@@ -48,19 +57,36 @@ function rulesTriage(messages:Array<{id:string;from:string;subject:string;date:s
 const triageSchema:JsonSchema={type:'object',additionalProperties:false,required:['items'],properties:{items:{type:'array',items:{type:'object',additionalProperties:false,required:['sourceId','title','sender','summary','category','priority','task'],properties:{sourceId:{type:'string'},title:{type:'string'},sender:{type:'string'},summary:{type:'string'},category:{type:'string',enum:['action','waiting','calendar','money','travel','people','noise']},priority:{type:'string',enum:['now','soon','later']},task:{anyOf:[{type:'string'},{type:'null'}]}}}}}};
 const briefSchema:JsonSchema={type:'object',additionalProperties:false,required:['headline','narrative','wins','watchouts'],properties:{headline:{type:'string'},narrative:{type:'string'},wins:{type:'array',items:{type:'string'},maxItems:3},watchouts:{type:'array',items:{type:'string'},maxItems:3}}};
 
-export async function understandMessages(messages:Array<{id:string;from:string;subject:string;date:string;text:string}>):Promise<TriageItem[]>{
+export async function understandMessages(messages:Array<{id:string;from:string;subject:string;date:string;text:string}>, settings?:UserSettings):Promise<TriageItem[]>{
   if(!messages.length)return[];
-  if(selectedProvider()==='rules')return rulesTriage(messages);
-  const chars=Math.min(8000,Math.max(200,Number(process.env.AI_INPUT_CHARS_PER_ITEM||1800)));
-  const result=await generateJson(`You are the intelligence layer for a private personal operations dashboard. Classify these recent emails. Be selective: newsletters and FYI messages must not become tasks. Summaries must be factual and under 22 words. Never invent a deadline.\n\n${JSON.stringify(messages.map(m=>({...m,text:m.text.slice(0,chars)})))}`,'email_triage',triageSchema);
+  const provider=selectedProvider(settings?.aiProvider);
+  if(provider==='rules')return rulesTriage(messages);
+  const chars=Math.min(8000,Math.max(200,settings?.aiInputChars||Number(process.env.AI_INPUT_CHARS_PER_ITEM||1800)));
+  const result=await generateJson(`You are the intelligence layer for a private personal operations dashboard. Classify these recent emails. Be selective: newsletters and FYI messages must not become tasks. Summaries must be factual and under 22 words. Never invent a deadline.\n\n${JSON.stringify(messages.map(m=>({...m,text:m.text.slice(0,chars)})))}`,'email_triage',triageSchema,provider);
   return result.items as TriageItem[];
 }
 
-export async function buildBrief(signals:Signal[]):Promise<Brief>{
+export async function buildBrief(signals:Signal[], settings?:UserSettings):Promise<Brief>{
   const active=signals.filter(s=>s.category!=='noise').slice(0,30);
-  if(selectedProvider()==='rules')return{headline:active.length?`${active.filter(s=>s.priority==='now').length||'A few'} things need your attention.`:'You are all caught up.',narrative:active.slice(0,3).map(s=>s.summary).join(' ')||'No meaningful changes since your last check-in.',wins:[],watchouts:active.filter(s=>s.priority==='now').slice(0,2).map(s=>s.title),generatedAt:new Date().toISOString()};
-  const result=await generateJson(`Write a calm executive brief from these normalized signals. Lead with decisions and deadlines, not inbox counts. Never invent facts.\n${JSON.stringify(active)}`,'daily_brief',briefSchema);
+  const provider=selectedProvider(settings?.aiProvider);
+  if(provider==='rules')return{headline:active.length?`${active.filter(s=>s.priority==='now').length||'A few'} things need your attention.`:'You are all caught up.',narrative:active.slice(0,3).map(s=>s.summary).join(' ')||'No meaningful changes since your last check-in.',wins:[],watchouts:active.filter(s=>s.priority==='now').slice(0,2).map(s=>s.title),generatedAt:new Date().toISOString()};
+  const result=await generateJson(`Write a calm executive brief from these normalized signals. Lead with decisions and deadlines, not inbox counts. Never invent facts.\n${JSON.stringify(active)}`,'daily_brief',briefSchema,provider);
   return{...result,generatedAt:new Date().toISOString()} as Brief;
 }
 
-export function aiStatus(){const provider=selectedProvider();return{provider,external:provider!=='rules',configured:provider==='rules'||provider==='openai'&&!!process.env.OPENAI_API_KEY||provider==='anthropic'&&!!process.env.ANTHROPIC_API_KEY||provider==='openai-compatible'&&!!process.env.AI_BASE_URL&&!!process.env.AI_COMPATIBLE_MODEL};}
+export async function answerQuestion(question:string, signals:Signal[], tasks:Task[], settings:UserSettings){
+  const provider=selectedProvider(settings.aiProvider);
+  const normalized=question.trim().toLowerCase();
+  if(provider==='rules'){
+    const terms=normalized.split(/\W+/).filter(term=>term.length>2);
+    const matches=signals.filter(signal=>terms.some(term=>`${signal.title} ${signal.summary} ${signal.sender}`.toLowerCase().includes(term))).slice(0,5);
+    if(matches.length)return `I found ${matches.length} relevant signal${matches.length===1?'':'s'}: ${matches.map(item=>item.title).join('; ')}.`;
+    const open=tasks.filter(task=>task.status==='open').slice(0,5);
+    return open.length?`I could not find a direct signal match. Your current focus queue starts with: ${open.map(task=>task.title).join('; ')}.`:'I could not find that in your stored signals or open tasks.';
+  }
+  const schema:JsonSchema={type:'object',additionalProperties:false,required:['answer'],properties:{answer:{type:'string'}}};
+  const result=await generateJson(`Answer the owner's question using only the normalized signals and tasks below. Say when the data does not contain the answer. Be concise and never invent facts.\nQuestion: ${question.slice(0,600)}\nSignals: ${JSON.stringify(signals.slice(0,50))}\nTasks: ${JSON.stringify(tasks.slice(0,30))}`,'orbit_answer',schema,provider);
+  return String(result.answer||'No answer was returned.');
+}
+
+export function aiStatus(){const provider=selectedProvider();const selected=aiProviders().find(item=>item.id===provider);return{provider,external:selected?.external||false,configured:selected?.configured||false};}

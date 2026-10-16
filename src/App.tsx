@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Activity, Bell, CalendarDays, Check, ChevronRight, CircleDollarSign, Clock3, GitBranch, Inbox, LayoutDashboard, Mail, Menu, MessageSquare, Plane, Plus, RefreshCw, Search, Settings, Sparkles, UserRound, X, Zap } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import type { Connection, Dashboard, Priority, Signal, Source, Task } from './types';
+import type { AiProvider, Connection, Dashboard, Priority, Signal, Source, Task } from './types';
 
 const sourceIcons: Record<Source, typeof Mail> = { gmail: Mail, outlook: Inbox, calendar: CalendarDays, github: GitBranch, slack: MessageSquare, manual: UserRound };
 const categoryIcons: Record<string, typeof Mail> = { action: Zap, waiting: Clock3, calendar: CalendarDays, money: CircleDollarSign, travel: Plane, people: UserRound, noise: Inbox };
@@ -24,14 +24,24 @@ function DashboardApp() {
   const [taskOpen, setTaskOpen] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [askOpen, setAskOpen] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
   const [toast, setToast] = useState('');
+  const [query, setQuery] = useState('');
+  const [showAllSignals, setShowAllSignals] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<Source|null>(null);
+  const [section, setSection] = useState<'today'|'signals'|'tasks'|'timeline'>('today');
 
   const load = async () => { const response = await fetch('/api/dashboard'); if (!response.ok) throw new Error('Could not load dashboard'); setData(await response.json()); setLoading(false); };
   useEffect(() => { load().catch(() => setLoading(false)); }, []);
+  useEffect(()=>{const handler=(event:KeyboardEvent)=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();document.querySelector<HTMLInputElement>('.search input')?.focus();}};addEventListener('keydown',handler);return()=>removeEventListener('keydown',handler)},[]);
   const sync = async () => { setSyncing(true); try { await fetch('/api/sync', { method:'POST' }); await load(); setToast('Everything is up to date'); } catch { setToast('Sync needs attention'); } finally { setSyncing(false); setTimeout(() => setToast(''), 2600); } };
   const toggleTask = async (task: Task) => { await fetch(`/api/tasks/${task.id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ status:task.status === 'done' ? 'open' : 'done' }) }); await load(); };
-  const visibleSignals = useMemo(() => data?.signals.filter(s => filter === 'all' || s.priority === filter) || [], [data, filter]);
+  const normalizedQuery=query.trim().toLowerCase();
+  const matchingSignals = useMemo(() => data?.signals.filter(s => (filter === 'all' || s.priority === filter) && (!sourceFilter||s.source===sourceFilter) && (!normalizedQuery||`${s.title} ${s.summary} ${s.sender} ${s.source}`.toLowerCase().includes(normalizedQuery))) || [], [data, filter, sourceFilter, normalizedQuery]);
+  const visibleSignals=showAllSignals?matchingSignals:matchingSignals.slice(0,6);
+  const visibleTasks=useMemo(()=>data?.tasks.filter(t=>t.status==='open'&&(!normalizedQuery||`${t.title} ${t.note||''} ${t.source}`.toLowerCase().includes(normalizedQuery)))||[],[data,normalizedQuery]);
+  const go=(next:typeof section,target?:string)=>{setSection(next);setMobileNav(false);if(next==='today'){setSourceFilter(null);setFilter('all');scrollTo({top:0,behavior:'smooth'});}else setTimeout(()=>document.getElementById(target||next)?.scrollIntoView({behavior:'smooth',block:'start'}),0)};
 
   if (loading) return <div className="loading"><img className="brand-image" src="/brand/orbit-mark.svg" alt="Orbit"/><span>Plotting your orbit…</span></div>;
   if (!data) return <Welcome onDemo={async () => { await fetch('/auth/demo',{method:'POST'}); location.reload(); }} />;
@@ -40,25 +50,25 @@ function DashboardApp() {
     <aside className={mobileNav ? 'sidebar open' : 'sidebar'}>
       <div className="wordmark"><img className="brand-image" src="/brand/orbit-mark.svg" alt=""/><span>ORBIT</span><button className="mobile-close" onClick={() => setMobileNav(false)}><X size={20}/></button></div>
       <nav>
-        <NavItem icon={LayoutDashboard} label="Today" active />
-        <NavItem icon={Inbox} label="Signals" count={data.stats.needsYou} />
-        <NavItem icon={Check} label="Tasks" count={data.tasks.filter(t => t.status === 'open').length} />
-        <NavItem icon={CalendarDays} label="Timeline" />
+        <NavItem icon={LayoutDashboard} label="Today" active={section==='today'} onClick={()=>go('today')} />
+        <NavItem icon={Inbox} label="Signals" count={data.stats.needsYou} active={section==='signals'} onClick={()=>{setShowAllSignals(true);go('signals')}} />
+        <NavItem icon={Check} label="Tasks" count={data.tasks.filter(t => t.status === 'open').length} active={section==='tasks'} onClick={()=>go('tasks')} />
+        <NavItem icon={CalendarDays} label="Timeline" active={section==='timeline'} onClick={()=>{setShowAllSignals(true);setFilter('all');go('timeline','signals')}} />
         <div className="nav-label">Sources</div>
-        {data.connections.filter(c => c.status === 'connected').map(c => <NavItem key={c.id} icon={sourceIcons[c.provider]} label={c.label} dot />)}
+        {data.connections.filter(c => c.status === 'connected').map(c => <NavItem key={c.id} icon={sourceIcons[c.provider]} label={c.label} dot active={sourceFilter===c.provider} onClick={()=>{setSourceFilter(c.provider);go('signals')}} />)}
         <button className="add-source" onClick={() => setConnectOpen(true)}><Plus size={15}/> Add a source</button>
       </nav>
       <div className="sidebar-bottom">
         <button onClick={()=>setSettingsOpen(true)}><Settings size={17}/> Settings</button>
-        <div className="profile"><div className="avatar">{data.user.name.split(' ').map(n=>n[0]).slice(0,2).join('')}</div><div><strong>{data.user.name}</strong><span>{data.mode === 'demo' ? 'Demo workspace' : data.user.email}</span></div><ChevronRight size={16}/></div>
+        <button className="profile" onClick={()=>setSettingsOpen(true)}><div className="avatar">{data.user.name.split(' ').map(n=>n[0]).slice(0,2).join('')}</div><div><strong>{data.user.name}</strong><span>{data.mode === 'demo' ? 'Demo workspace' : data.user.email}</span></div><ChevronRight size={16}/></button>
       </div>
     </aside>
 
     <main>
       <header className="topbar">
         <button className="menu-btn" onClick={() => setMobileNav(true)}><Menu size={22}/></button>
-        <div className="search"><Search size={17}/><span>Search your orbit</span><kbd>⌘ K</kbd></div>
-        <div className="top-actions"><span className="sync-state"><i/>Synced {timeAgo(data.connections.find(c => c.lastSyncedAt)?.lastSyncedAt)}</span><button className="icon-btn"><Bell size={18}/><b/></button><button className="sync-btn" onClick={sync} disabled={syncing}><RefreshCw size={16} className={syncing ? 'spin':''}/><span>{syncing?'Syncing':'Sync now'}</span></button></div>
+        <label className="search"><Search size={17}/><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search your orbit"/><kbd>⌘ K</kbd></label>
+        <div className="top-actions"><span className="sync-state"><i/>Synced {timeAgo(data.connections.find(c => c.lastSyncedAt)?.lastSyncedAt)}</span><button className="icon-btn" title="Show urgent signals" onClick={()=>{setFilter('now');go('signals')}}><Bell size={18}/>{data.signals.some(s=>s.priority==='now')&&<b/>}</button><button className="sync-btn" onClick={sync} disabled={syncing}><RefreshCw size={16} className={syncing ? 'spin':''}/><span>{syncing?'Syncing':'Sync now'}</span></button></div>
       </header>
 
       <div className="content">
@@ -69,7 +79,7 @@ function DashboardApp() {
           <div className="brief-orb"><Sparkles size={22}/></div>
           <div className="brief-copy"><div className="eyebrow">Your orbit brief <span>AI SYNTHESIZED</span></div><h2>{data.brief.headline}</h2><p>{data.brief.narrative}</p>
             <div className="brief-tags">{data.brief.watchouts.map(x=><span key={x} className="watch"><Zap size={12}/>{x}</span>)}{data.brief.wins.slice(0,1).map(x=><span key={x}><Check size={12}/>{x}</span>)}</div>
-          </div><button className="ask-button">Ask Orbit <ChevronRight size={16}/></button>
+          </div><button className="ask-button" onClick={()=>setAskOpen(true)}>Ask Orbit <ChevronRight size={16}/></button>
         </section>
 
         <section className="metrics">
@@ -80,30 +90,32 @@ function DashboardApp() {
         </section>
 
         <div className="dashboard-grid">
-          <section className="panel signals-panel">
+          <section className="panel signals-panel" id="signals">
             <div className="panel-head"><div><h3>Signal radar</h3><p>Important changes across your connected world</p></div><div className="segmented">{(['all','now','soon','later'] as const).map(v=><button key={v} className={filter===v?'active':''} onClick={()=>setFilter(v)}>{v === 'all' ? 'All' : v[0].toUpperCase()+v.slice(1)}</button>)}</div></div>
-            <div className="signal-list">{visibleSignals.map(signal => <SignalRow key={signal.id} signal={signal}/>)}</div>
-            <button className="view-all">View all signals <ChevronRight size={15}/></button>
+            <div className="signal-list">{visibleSignals.map(signal => <SignalRow key={signal.id} signal={signal}/>)}{visibleSignals.length===0&&<EmptyState text={normalizedQuery?'No signals match your search.':'No signals in this view.'}/>}</div>
+            {matchingSignals.length>6&&<button className="view-all" onClick={()=>setShowAllSignals(value=>!value)}>{showAllSignals?'Show less':`View all ${matchingSignals.length} signals`} <ChevronRight size={15}/></button>}
           </section>
 
-          <section className="panel focus-panel">
+          <section className="panel focus-panel" id="tasks">
             <div className="panel-head"><div><h3>Focus queue</h3><p>Your next best actions</p></div><button className="round-add" onClick={()=>setTaskOpen(true)}><Plus size={18}/></button></div>
-            <div className="task-list">{data.tasks.filter(t=>t.status==='open').slice(0,5).map((task,i)=><TaskRow key={task.id} task={task} index={i} onToggle={()=>toggleTask(task)}/>)}</div>
+            <div className="task-list">{(section==='tasks'?visibleTasks:visibleTasks.slice(0,5)).map((task,i)=><TaskRow key={task.id} task={task} index={i} onToggle={()=>toggleTask(task)}/>) }{visibleTasks.length===0&&<EmptyState text={normalizedQuery?'No tasks match your search.':'Your focus queue is clear.'}/>}</div>
             <button className="quick-add" onClick={()=>setTaskOpen(true)}><Plus size={16}/> Capture something</button>
           </section>
         </div>
 
-        <section className="source-strip"><div><div className="pulse-icon"><Activity size={18}/></div><div><strong>Your world, connected</strong><span>{data.connections.filter(c=>c.status==='connected').length} sources are feeding your brief</span></div></div><div className="source-icons">{data.connections.map(c=>{const Icon=sourceIcons[c.provider];return <button key={c.id} title={c.label} className={c.status}><Icon size={18}/>{c.status==='connected'&&<i/>}</button>})}<button className="source-plus" onClick={()=>setConnectOpen(true)}><Plus size={18}/></button></div></section>
+        <section className="source-strip"><div><div className="pulse-icon"><Activity size={18}/></div><div><strong>Your world, connected</strong><span>{data.connections.filter(c=>c.status==='connected').length} sources are feeding your brief · {data.system.persistent?'PostgreSQL persistent storage':'Temporary memory storage'}</span></div></div><div className="source-icons">{data.connections.map(c=>{const Icon=sourceIcons[c.provider];return <button key={c.id} title={`Filter by ${c.label}`} className={c.status} onClick={()=>{if(c.status==='connected'){setSourceFilter(c.provider);go('signals')}else setConnectOpen(true)}}><Icon size={18}/>{c.status==='connected'&&<i/>}</button>})}<button className="source-plus" title="Add a source" onClick={()=>setConnectOpen(true)}><Plus size={18}/></button></div></section>
       </div>
     </main>
     {taskOpen && <TaskModal onClose={()=>setTaskOpen(false)} onSaved={async()=>{setTaskOpen(false);await load();setToast('Added to your focus queue')}}/>}
     {connectOpen && <ConnectModal connections={data.connections} onClose={()=>setConnectOpen(false)}/>} 
     {settingsOpen&&<SettingsModal data={data} onClose={()=>setSettingsOpen(false)} onChanged={load}/>} 
+    {askOpen&&<AskModal onClose={()=>setAskOpen(false)}/>}
     {toast && <div className="toast"><Check size={16}/>{toast}</div>}
   </div>;
 }
 
-function NavItem({icon:Icon,label,count,active,dot}:{icon:typeof Mail;label:string;count?:number;active?:boolean;dot?:boolean}) { return <button className={active?'nav-item active':'nav-item'}><Icon size={17}/><span>{label}</span>{count!==undefined&&<b>{count}</b>}{dot&&<i/>}</button> }
+function NavItem({icon:Icon,label,count,active,dot,onClick}:{icon:typeof Mail;label:string;count?:number;active?:boolean;dot?:boolean;onClick:()=>void}) { return <button className={active?'nav-item active':'nav-item'} onClick={onClick}><Icon size={17}/><span>{label}</span>{count!==undefined&&<b>{count}</b>}{dot&&<i/>}</button> }
+function EmptyState({text}:{text:string}){return <div className="empty-state">{text}</div>}
 function Metric({label,value,note,tone}:{label:string;value:number;note:string;tone:string}) { return <div className={`metric ${tone}`}><div><span>{label}</span><strong>{String(value).padStart(2,'0')}</strong></div><p>{note}</p></div> }
 function SignalRow({signal}:{signal:Signal}) { const Icon=categoryIcons[signal.category]||Mail; return <article className="signal-row"><div className={`signal-icon ${signal.category}`}><Icon size={17}/></div><div className="signal-main"><div className="signal-meta"><span className={`priority ${signal.priority}`}>{signal.priority}</span><span>{signal.source}</span><i/> <span>{timeAgo(signal.occurredAt)}</span></div><h4>{signal.title}</h4><p>{signal.summary}</p></div><ChevronRight size={17} className="row-chevron"/></article> }
 function TaskRow({task,index,onToggle}:{task:Task;index:number;onToggle:()=>void}) { const Icon=sourceIcons[task.source]; return <article className="task-row"><button className="task-check" onClick={onToggle}><Check size={14}/></button><div><span className={`task-index ${task.priority}`}>{String(index+1).padStart(2,'0')}</span><h4>{task.title}</h4><p><Icon size={12}/>{task.source}{task.dueAt&&<> · due {timeAgo(task.dueAt).replace('in ','')}</>}</p></div></article> }
@@ -112,15 +124,27 @@ function TaskModal({onClose,onSaved}:{onClose:()=>void;onSaved:()=>void}) { cons
 function ConnectModal({connections,onClose}:{connections:Connection[];onClose:()=>void}) { const options:Connection[]=[{id:'gmail-new',provider:'gmail',label:'Gmail',status:'available'},...connections.filter(c=>c.provider!=='gmail')];return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="modal connect-modal"><div className="modal-head"><div><span>SOURCE LIBRARY</span><h3>Connect your world</h3></div><button onClick={onClose}><X size={20}/></button></div><p className="modal-intro">Orbit reads the signals you choose and turns them into one focused brief. Your credentials stay encrypted.</p><div className="connect-grid">{options.map(c=>{const Icon=sourceIcons[c.provider];return <div className="connect-card" key={c.id}><div className={`connect-logo ${c.provider}`}><Icon size={22}/></div><div><strong>{c.label}</strong><span>{c.provider==='gmail'?'Mail, receipts & follow-ups':c.provider==='calendar'?'Events, conflicts & prep':c.provider==='github'?'Reviews, issues & releases':c.provider==='slack'?'Mentions & decisions':'Mail & calendar'}</span></div>{c.provider==='gmail'?<a href="/auth/google">Connect</a>:<button disabled>{c.status==='available'?'Soon':'Waitlist'}</button>}</div>})}</div></div></div> }
 function SettingsModal({data,onClose,onChanged}:{data:Dashboard;onClose:()=>void;onChanged:()=>Promise<void>}){
   const [confirmation,setConfirmation]=useState('');
+  const [aiProvider,setAiProvider]=useState<AiProvider>(data.settings.aiProvider);
+  const [aiInputChars,setAiInputChars]=useState(data.settings.aiInputChars);
+  const [savingAi,setSavingAi]=useState(false);
   const disconnect=async(id:string)=>{await fetch(`/api/connections/${id}`,{method:'DELETE'});await onChanged()};
   const erase=async()=>{if(confirmation!=='DELETE')return;const response=await fetch('/api/account',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmation})});if(response.ok)location.href='/'};
+  const saveAi=async()=>{setSavingAi(true);const response=await fetch('/api/settings',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({aiProvider,aiInputChars})});setSavingAi(false);if(response.ok)await onChanged()};
+  const logout=async()=>{await fetch('/auth/logout',{method:'POST'});location.href='/'};
   return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="modal settings-modal"><div className="modal-head"><div><span>OWNER CONTROLS</span><h3>Privacy & data</h3></div><button onClick={onClose}><X size={20}/></button></div>
+    <div className="settings-section"><h4>Intelligence engine</h4><p>Choose how Orbit classifies new messages and answers questions. API credentials stay in Railway environment variables and are never returned to this browser.</p><div className="provider-grid">{data.system.aiProviders.map(provider=><button key={provider.id} disabled={!provider.configured} className={aiProvider===provider.id?'selected':''} onClick={()=>provider.configured&&setAiProvider(provider.id)}><strong>{provider.label}</strong><span>{provider.configured?(provider.external?'External processing':'Stays on this installation'):'Add credentials in Railway'}</span></button>)}</div><label className="range-label"><span>Maximum message excerpt sent for AI processing</span><strong>{aiInputChars.toLocaleString()} characters</strong><input type="range" min="200" max="8000" step="200" value={aiInputChars} onChange={event=>setAiInputChars(Number(event.target.value))}/></label><button className="settings-action button" onClick={saveAi} disabled={savingAi}>{savingAi?'Saving…':'Save AI settings'}</button></div>
     <div className="settings-section"><h4>Your data</h4><p>Export the normalized signals, tasks, and brief stored in this installation. Provider credentials are excluded.</p><a className="settings-action" href="/api/account/export">Download JSON export</a></div>
     <div className="settings-section"><h4>Connected sources</h4>{data.connections.filter(c=>c.status==='connected').length===0?<p>No providers connected.</p>:data.connections.filter(c=>c.status==='connected').map(c=><div className="settings-connection" key={c.id}><div><strong>{c.label}</strong><span>{c.accountEmail||c.provider}</span></div><button onClick={()=>disconnect(c.id)}>Disconnect & revoke</button></div>)}</div>
-    <div className="settings-section facts"><h4>Privacy facts</h4><div><span>Raw message storage</span><strong>Off</strong></div><div><span>Telemetry</span><strong>Off</strong></div><div><span>Installation</span><strong>Single-tenant</strong></div></div>
+    <div className="settings-section facts"><h4>Privacy and storage</h4><div><span>Database</span><strong>{data.system.storage==='postgres'?'PostgreSQL':'Memory only'}</strong></div><div><span>Survives redeploys</span><strong>{data.system.persistent?'Yes':'No'}</strong></div><div><span>Raw message storage</span><strong>Off</strong></div><div><span>Telemetry</span><strong>Off</strong></div><div><span>Installation</span><strong>Single-tenant</strong></div></div>
+    <div className="settings-section"><h4>Session</h4><p>Sign out on this browser. Your stored data and Gmail connection remain in PostgreSQL.</p><button className="settings-action button" onClick={logout}>Sign out</button></div>
     <div className="settings-section danger"><h4>Delete this account</h4><p>Revokes connected provider tokens when possible and permanently removes the owner, signals, tasks, connections, and brief from this database.</p><div><input value={confirmation} onChange={e=>setConfirmation(e.target.value)} placeholder="Type DELETE"/><button disabled={confirmation!=='DELETE'} onClick={erase}>Delete everything</button></div></div>
     <div className="legal-links"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/security">Security</a></div>
   </div></div>;
+}
+function AskModal({onClose}:{onClose:()=>void}){
+  const [question,setQuestion]=useState('');const [answer,setAnswer]=useState('');const [asking,setAsking]=useState(false);const [error,setError]=useState('');
+  const ask=async(event:React.FormEvent)=>{event.preventDefault();setAsking(true);setError('');setAnswer('');try{const response=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question})});const result=await response.json();if(!response.ok)throw new Error(result.error||'Could not answer');setAnswer(result.answer);}catch(e){setError(e instanceof Error?e.message:'Could not answer');}finally{setAsking(false)}};
+  return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><form className="modal ask-modal" onSubmit={ask}><div className="modal-head"><div><span>ASK YOUR ORBIT</span><h3>Question your stored signals</h3></div><button type="button" onClick={onClose}><X size={20}/></button></div><p className="modal-intro">Answers use normalized signals and tasks already in Orbit—not a new mailbox fetch.</p><input autoFocus value={question} onChange={event=>setQuestion(event.target.value)} maxLength={600} placeholder="What needs my attention before Friday?" required/>{answer&&<div className="ask-answer"><Sparkles size={17}/><p>{answer}</p></div>}{error&&<div className="ask-error">{error}</div>}<button className="primary" disabled={asking}>{asking?'Thinking…':'Ask Orbit'} <ChevronRight size={16}/></button></form></div>
 }
 function Welcome({onDemo}:{onDemo:()=>void}) {
   const [config,setConfig]=useState<{ownerConfigured:boolean;gmailConfigured:boolean;databaseConfigured:boolean;demoMode:boolean;ai:{provider:string};privacy:{signalRetentionDays:number}}|null>(null);

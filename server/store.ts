@@ -1,12 +1,12 @@
 import crypto from 'node:crypto';
 import pg from 'pg';
 import { demoBrief, demoConnections, demoSignals, demoTasks, demoUser } from './demo.js';
-import type { Brief, Connection, Signal, Task, User } from './types.js';
+import type { AiProvider, Brief, Connection, Signal, Task, User, UserSettings } from './types.js';
 
 const pool = process.env.DATABASE_URL ? new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined }) : null;
 const memory = {
   users: new Map<string, User>([[demoUser.id, demoUser]]),
-  connections: [...demoConnections], signals: [...demoSignals], tasks: [...demoTasks], briefs: new Map<string, Brief>([[demoUser.id, demoBrief]])
+  connections: [...demoConnections], signals: [...demoSignals], tasks: [...demoTasks], briefs: new Map<string, Brief>([[demoUser.id, demoBrief]]), settings: new Map<string, UserSettings>()
 };
 
 export async function initStore() {
@@ -17,6 +17,7 @@ export async function initStore() {
     CREATE TABLE IF NOT EXISTS signals (id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id) ON DELETE CASCADE, source TEXT NOT NULL, source_id TEXT NOT NULL, sender TEXT, title TEXT NOT NULL, summary TEXT, occurred_at TIMESTAMPTZ, category TEXT, priority TEXT, read BOOLEAN DEFAULT FALSE, metadata JSONB DEFAULT '{}', UNIQUE(user_id, source, source_id));
     CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id) ON DELETE CASCADE, title TEXT NOT NULL, note TEXT, due_at TIMESTAMPTZ, priority TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', source TEXT NOT NULL, source_signal_id TEXT, created_at TIMESTAMPTZ DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS briefs (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, data JSONB NOT NULL, generated_at TIMESTAMPTZ DEFAULT NOW());
+    CREATE TABLE IF NOT EXISTS user_settings (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, ai_provider TEXT NOT NULL DEFAULT 'rules', ai_input_chars INTEGER NOT NULL DEFAULT 1800, updated_at TIMESTAMPTZ DEFAULT NOW());
   `);
   if (process.env.DEMO_MODE !== 'false') {
     await pool.query('INSERT INTO users(id,email,name,avatar,created_at) VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO NOTHING', [demoUser.id,demoUser.email,demoUser.name,demoUser.avatar || null,demoUser.createdAt]);
@@ -82,6 +83,18 @@ export async function getBrief(userId: string) {
 export async function saveBrief(userId: string, brief: Brief) {
   if (!pool) memory.briefs.set(userId, brief); else await pool.query('INSERT INTO briefs(user_id,data,generated_at) VALUES($1,$2,$3) ON CONFLICT(user_id) DO UPDATE SET data=$2,generated_at=$3', [userId, brief, brief.generatedAt]);
 }
+export async function getSettings(userId: string): Promise<UserSettings> {
+  const fallback: UserSettings = { aiProvider: (process.env.AI_PROVIDER || 'rules') as AiProvider, aiInputChars: Math.min(8000, Math.max(200, Number(process.env.AI_INPUT_CHARS_PER_ITEM || 1800))) };
+  if (!pool) return memory.settings.get(userId) || fallback;
+  const { rows } = await pool.query('SELECT ai_provider,ai_input_chars FROM user_settings WHERE user_id=$1', [userId]);
+  return rows[0] ? { aiProvider: rows[0].ai_provider as AiProvider, aiInputChars: rows[0].ai_input_chars } : fallback;
+}
+export async function saveSettings(userId: string, settings: UserSettings) {
+  if (!pool) { memory.settings.set(userId, settings); return settings; }
+  await pool.query(`INSERT INTO user_settings(user_id,ai_provider,ai_input_chars,updated_at) VALUES($1,$2,$3,NOW())
+    ON CONFLICT(user_id) DO UPDATE SET ai_provider=$2,ai_input_chars=$3,updated_at=NOW()`, [userId, settings.aiProvider, settings.aiInputChars]);
+  return settings;
+}
 export async function pruneOldSignals() {
   if (!pool) return;
   const days = Math.max(1, Number(process.env.SIGNAL_RETENTION_DAYS || 30));
@@ -92,7 +105,7 @@ export async function deleteConnection(userId:string,id:string){
   const {rows}=await pool.query('DELETE FROM connections WHERE id=$1 AND user_id=$2 RETURNING *',[id,userId]);return rows[0]?rowsTo.connection(rows[0]):null;
 }
 export async function deleteUser(userId:string){
-  if(!pool){memory.users.delete(userId);memory.connections=memory.connections.filter(x=>x.userId!==userId);memory.signals=memory.signals.filter(x=>x.userId!==userId);memory.tasks=memory.tasks.filter(x=>x.userId!==userId);memory.briefs.delete(userId);return;}
+  if(!pool){memory.users.delete(userId);memory.connections=memory.connections.filter(x=>x.userId!==userId);memory.signals=memory.signals.filter(x=>x.userId!==userId);memory.tasks=memory.tasks.filter(x=>x.userId!==userId);memory.briefs.delete(userId);memory.settings.delete(userId);return;}
   await pool.query('DELETE FROM users WHERE id=$1',[userId]);
 }
 export { pool };

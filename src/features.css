@@ -1,0 +1,152 @@
+.search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #dce3d5;
+  font-size: 11px;
+}
+
+.search input::placeholder {
+  color: #70796b;
+}
+
+.profile {
+  width: 100%;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.profile:hover strong,
+.profile:hover > svg {
+  color: var(--acid);
+}
+
+#signals,
+#tasks {
+  scroll-margin-top: 88px;
+}
+
+.signal-row {
+  cursor: default;
+}
+
+.empty-state {
+  padding: 30px 18px;
+  color: #737d6e;
+  font: 9px DM Mono, monospace;
+  text-align: center;
+}
+
+.provider-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.provider-grid button {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 11px;
+  border: 1px solid #30372d;
+  border-radius: 8px;
+  background: #121611;
+  color: #d6ddcf;
+  text-align: left;
+  cursor: pointer;
+}
+
+.provider-grid button.selected {
+  border-color: #718551;
+  background: #22291f;
+  box-shadow: inset 2px 0 var(--acid);
+}
+
+.provider-grid button:disabled {
+  opacity: .42;
+  cursor: not-allowed;
+}
+
+.provider-grid strong {
+  font-size: 10px;
+}
+
+.provider-grid span {
+  color: #747e70;
+  font-size: 8px;
+}
+
+.range-label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 7px 12px;
+  margin: 14px 0;
+  color: #879181;
+  font-size: 9px;
+}
+
+.range-label strong {
+  color: var(--acid);
+  font: 500 9px DM Mono, monospace;
+}
+
+.range-label input {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--acid);
+}
+
+.settings-action.button {
+  border: 1px solid #4a583e;
+  cursor: pointer;
+}
+
+.settings-action.button:disabled {
+  opacity: .5;
+  cursor: wait;
+}
+
+.ask-modal {
+  width: min(560px, 100%);
+}
+
+.ask-answer {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 9px;
+  margin-top: 2px;
+  padding: 14px;
+  border: 1px solid #3c4933;
+  border-radius: 9px;
+  background: #20271c;
+  color: var(--acid);
+}
+
+.ask-answer p {
+  margin: 0;
+  color: #bcc5b5;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.ask-error {
+  padding: 10px;
+  border: 1px solid #653d34;
+  border-radius: 7px;
+  color: #ec9a8c;
+  font-size: 9px;
+}
+
+@media (max-width: 640px) {
+  .provider-grid {
+    grid-template-columns: 1fr;
+  }
+}

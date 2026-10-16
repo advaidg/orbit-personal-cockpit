@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { google, gmail_v1 } from 'googleapis';
 import { decrypt } from './crypto.js';
 import { buildBrief, understandMessages } from './ai.js';
-import { createTask, getConnections, getSignals, saveBrief, upsertConnection, upsertSignal } from './store.js';
+import { createTask, getConnections, getSettings, getSignals, saveBrief, upsertConnection, upsertSignal } from './store.js';
 import type { Connection, Signal } from './types.js';
 
 type GoogleTokens = { access_token?: string | null; refresh_token?: string | null; scope?: string; token_type?: string | null; expiry_date?: number | null };
@@ -30,7 +30,8 @@ export async function syncGmailConnection(connection: Connection) {
     const headers = Object.fromEntries((data.payload?.headers || []).map(h => [h.name?.toLowerCase(), h.value]));
     return { id: id!, from: headers.from || 'Unknown sender', subject: headers.subject || '(no subject)', date: headers.date || new Date(Number(data.internalDate)).toISOString(), text: bodyText(data.payload) || data.snippet || '' };
   }));
-  const understood = await understandMessages(messages);
+  const settings = await getSettings(connection.userId);
+  const understood = await understandMessages(messages, settings);
   const existing = await getSignals(connection.userId);
   for (const item of understood) {
     const source = messages.find(m => m.id === item.sourceId)!;
@@ -39,7 +40,7 @@ export async function syncGmailConnection(connection: Connection) {
     if (item.task && !existing.some(s => s.sourceId === item.sourceId)) await createTask(connection.userId, { title: item.task, priority: item.priority, source: 'gmail', sourceSignalId: signal.id });
   }
   connection.lastSyncedAt = new Date().toISOString(); connection.status = 'connected'; await upsertConnection(connection);
-  await saveBrief(connection.userId, await buildBrief(await getSignals(connection.userId)));
+  await saveBrief(connection.userId, await buildBrief(await getSignals(connection.userId), settings));
 }
 
 export async function syncUser(userId: string) {

@@ -98,6 +98,8 @@ See [AI providers](docs/AI_PROVIDERS.md) and [data and privacy](docs/DATA_AND_PR
 
 - Gmail requests `gmail.readonly`; Orbit does not send or delete email.
 - OAuth tokens are encrypted with AES-256-GCM before persistence.
+- Application data lives in PostgreSQL, not the disposable application container, so normal Railway builds and redeploys do not remove accounts, connections, tasks, signals, briefs, or settings.
+- AI provider selection and excerpt limits are stored per owner in PostgreSQL; provider credentials remain server-side environment variables.
 - `APP_ENCRYPTION_KEY` and `SESSION_SECRET` must be unique production secrets.
 - API credentials never ship to the browser.
 - `OWNER_EMAIL` makes the default deployment single-tenant and rejects other Google identities.

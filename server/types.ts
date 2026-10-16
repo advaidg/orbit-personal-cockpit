@@ -1,5 +1,6 @@
 export type Source = 'gmail' | 'outlook' | 'calendar' | 'github' | 'slack' | 'manual';
 export type Priority = 'now' | 'soon' | 'later';
+export type AiProvider = 'rules' | 'openai' | 'anthropic' | 'openai-compatible';
 
 export interface User {
   id: string;
@@ -56,6 +57,11 @@ export interface Brief {
   generatedAt: string;
 }
 
+export interface UserSettings {
+  aiProvider: AiProvider;
+  aiInputChars: number;
+}
+
 export interface DashboardData {
   user: User;
   mode: 'demo' | 'live';
@@ -64,5 +70,7 @@ export interface DashboardData {
   signals: Signal[];
   tasks: Task[];
   connections: Connection[];
+  settings: UserSettings;
+  system: { storage: 'postgres' | 'memory'; persistent: boolean; aiProviders: Array<{ id: AiProvider; label: string; configured: boolean; external: boolean }> };
   stats: { needsYou: number; waitingOn: number; cleared: number; noiseFiltered: number };
 }

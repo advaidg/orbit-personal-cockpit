@@ -10,6 +10,8 @@ Deploy the Orbit template, which creates:
 
 - One Orbit application service connected to this GitHub repository.
 - One PostgreSQL service with a persistent volume.
+
+Orbit's application container is disposable by design. Persistent records live in PostgreSQL and survive normal application redeploys. Deleting the PostgreSQL service, its volume, the Railway project, or using Orbit's **Delete everything** control removes that data. Configure Railway backups separately if you need point-in-time recovery.
 - Independent generated session and encryption secrets.
 
 ### 2. Set the owner
