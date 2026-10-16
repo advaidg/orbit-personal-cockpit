@@ -18,14 +18,30 @@ import { aiStatus } from './ai.js';
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const production = process.env.NODE_ENV === 'production';
-app.use(helmet({ contentSecurityPolicy: false }));
+if (production) {
+  const required = ['APP_URL','OWNER_EMAIL','SESSION_SECRET','APP_ENCRYPTION_KEY','DATABASE_URL','GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET'] as const;
+  const missing = required.filter((name) => !process.env[name]);
+  if (missing.length) throw new Error(`Refusing to start: missing required production settings: ${missing.join(', ')}`);
+  if (process.env.SESSION_SECRET!.length < 32 || process.env.APP_ENCRYPTION_KEY!.length < 32) throw new Error('Refusing to start: security secrets must be at least 32 characters');
+  if (process.env.SESSION_SECRET === process.env.APP_ENCRYPTION_KEY) throw new Error('Refusing to start: SESSION_SECRET and APP_ENCRYPTION_KEY must be different');
+  if (new URL(process.env.APP_URL!).protocol !== 'https:') throw new Error('Refusing to start: APP_URL must use HTTPS in production');
+}
+const cookieNames = {
+  session: production ? '__Host-orbit_session' : 'orbit_session',
+  oauthState: production ? '__Host-orbit_oauth_state' : 'orbit_oauth_state',
+  linkUser: production ? '__Host-orbit_link_user' : 'orbit_link_user'
+};
+const cookieBase = { httpOnly: true, sameSite: 'lax' as const, secure: production, path: '/' };
+app.disable('x-powered-by');
+app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc:["'self'"], scriptSrc:["'self'"], styleSrc:["'self'","'unsafe-inline'",'https://fonts.googleapis.com'], fontSrc:["'self'",'https://fonts.gstatic.com'], imgSrc:["'self'",'data:','https:'], connectSrc:["'self'"], objectSrc:["'none'"], baseUri:["'self'"], frameAncestors:["'none'"], formAction:["'self'",'https://accounts.google.com'] } } }));
 app.use(express.json());
 app.use(cookieParser());
+app.use(['/auth','/api'], (_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
 app.use('/auth',rateLimit({windowMs:15*60_000,limit:40,standardHeaders:'draft-8',legacyHeaders:false}));
 app.use('/api',rateLimit({windowMs:60_000,limit:180,standardHeaders:'draft-8',legacyHeaders:false}));
-app.use((req,res,next)=>{if(['POST','PATCH','PUT','DELETE'].includes(req.method)){const origin=req.get('origin');const expected=process.env.APP_URL?new URL(process.env.APP_URL).origin:null;if(origin&&expected&&origin!==expected)return res.status(403).json({error:'Origin not allowed'});}next();});
+app.use((req,res,next)=>{if(['POST','PATCH','PUT','DELETE'].includes(req.method)){const origin=req.get('origin');const expected=process.env.APP_URL?new URL(process.env.APP_URL).origin:null;const fetchSite=req.get('sec-fetch-site');if(fetchSite==='cross-site'||origin&&expected&&origin!==expected)return res.status(403).json({error:'Origin not allowed'});}next();});
 
-function userId(req: express.Request) { return verifySession(req.cookies.orbit_session) || (process.env.DEMO_MODE === 'false' ? null : demoUser.id); }
+function userId(req: express.Request) { return verifySession(req.cookies[cookieNames.session]) || (process.env.DEMO_MODE === 'false' ? null : demoUser.id); }
 function requireUser(req: express.Request, res: express.Response, next: express.NextFunction) { const id = userId(req); if (!id) return res.status(401).json({ error: 'Not authenticated' }); res.locals.userId = id; next(); }
 
 app.get('/health', (_req, res) => res.json({ ok: true, database: pool ? 'postgres' : 'memory', time: new Date().toISOString() }));
@@ -33,32 +49,32 @@ app.get('/api/config', (_req, res) => res.json({ selfHosted:true, singleTenant:t
 app.get('/auth/google', (req, res) => {
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) return res.redirect('/?setup=gmail');
   const state = crypto.randomBytes(20).toString('hex');
-  res.cookie('orbit_oauth_state', state, { httpOnly: true, sameSite: 'lax', secure: production, maxAge: 600_000 });
+  res.cookie(cookieNames.oauthState, state, { ...cookieBase, maxAge: 600_000 });
   const currentUserId = userId(req);
-  if (currentUserId) res.cookie('orbit_link_user', signSession(currentUserId), { httpOnly: true, sameSite: 'lax', secure: production, maxAge: 600_000 });
+  if (currentUserId) res.cookie(cookieNames.linkUser, signSession(currentUserId, 600), { ...cookieBase, maxAge: 600_000 });
   res.redirect(oauthClient().generateAuthUrl({ access_type: 'offline', prompt: 'consent', state, scope: ['openid','email','profile','https://www.googleapis.com/auth/gmail.readonly'] }));
 });
 app.get('/auth/google/callback', async (req, res, next) => {
   try {
-    if (!req.query.state || req.query.state !== req.cookies.orbit_oauth_state) return res.status(400).send('Invalid OAuth state');
+    if (!req.query.state || req.query.state !== req.cookies[cookieNames.oauthState] || !req.query.code) return res.status(400).send('Invalid OAuth response');
     const client = oauthClient(); const { tokens } = await client.getToken(String(req.query.code)); client.setCredentials(tokens);
     const oauth = google.oauth2({ version: 'v2', auth: client }); const { data } = await oauth.userinfo.get();
     const ownerEmail=process.env.OWNER_EMAIL?.trim().toLowerCase();
-    if(ownerEmail&&data.email?.toLowerCase()!==ownerEmail)return res.status(403).send('This private Orbit instance only allows its configured owner.');
-    const linkedUserId = verifySession(req.cookies.orbit_link_user);
+    if(ownerEmail&&data.email?.toLowerCase()!==ownerEmail){await client.revokeCredentials().catch(()=>undefined);return res.status(403).send('This private Orbit instance only allows its configured owner.');}
+    const linkedUserId = verifySession(req.cookies[cookieNames.linkUser]);
     const linkedUser = linkedUserId ? await getUser(linkedUserId) : null;
     const googleUser: User = { id: data.id!, email: data.email!, name: data.name || data.email!.split('@')[0], avatar: data.picture || undefined, createdAt: new Date().toISOString() };
     const user = linkedUser || googleUser;
     if (!linkedUser) await upsertUser(user);
     const connection: Connection = { id: crypto.createHash('sha1').update(`gmail:${user.id}:${googleUser.email}`).digest('hex'), userId: user.id, provider: 'gmail', label: linkedUser ? `Gmail · ${googleUser.email}` : 'Gmail', accountEmail: googleUser.email, status: 'connected', encryptedTokens: encrypt(tokens) };
     await upsertConnection(connection);
-    res.cookie('orbit_session', signSession(user.id), { httpOnly: true, sameSite: 'lax', secure: production, maxAge: 30 * 86400_000 });
-    res.clearCookie('orbit_oauth_state'); res.clearCookie('orbit_link_user'); res.redirect('/?connected=gmail');
+    res.cookie(cookieNames.session, signSession(user.id), { ...cookieBase, maxAge: 30 * 86400_000 });
+    res.clearCookie(cookieNames.oauthState, cookieBase); res.clearCookie(cookieNames.linkUser, cookieBase); res.redirect('/?connected=gmail');
     syncUser(user.id).catch(console.error);
   } catch (error) { next(error); }
 });
-app.post('/auth/demo', (_req, res) => { res.cookie('orbit_session', signSession(demoUser.id), { httpOnly: true, sameSite: 'lax', secure: production, maxAge: 30 * 86400_000 }); res.json({ ok: true }); });
-app.post('/auth/logout', (_req, res) => { res.clearCookie('orbit_session'); res.json({ ok: true }); });
+app.post('/auth/demo', (_req, res) => { if(process.env.DEMO_MODE!=='true')return res.status(404).json({error:'Not found'});res.cookie(cookieNames.session, signSession(demoUser.id), { ...cookieBase, maxAge: 30 * 86400_000 }); res.json({ ok: true }); });
+app.post('/auth/logout', (_req, res) => { res.clearCookie(cookieNames.session, cookieBase); res.json({ ok: true }); });
 
 app.get('/api/dashboard', requireUser, async (_req, res) => {
   const id = res.locals.userId; const user = await getUser(id); if (!user) return res.status(404).json({ error: 'User not found' });
@@ -76,7 +92,7 @@ app.delete('/api/connections/:id',requireUser,async(req,res,next)=>{try{const co
 app.delete('/api/account',requireUser,async(req,res,next)=>{try{if(req.body?.confirmation!=='DELETE')return res.status(400).json({error:'Type DELETE to confirm'});const connections=await getConnections(res.locals.userId);for(const connection of connections){if(!connection.encryptedTokens)continue;const tokens=decrypt<{access_token?:string;refresh_token?:string}>(connection.encryptedTokens);const token=tokens.refresh_token||tokens.access_token;if(token)await oauthClient().revokeToken(token).catch(()=>undefined);}await deleteUser(res.locals.userId);res.clearCookie('orbit_session');res.status(204).end();}catch(e){next(e);}});
 
 if (production) { const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist'); app.use(express.static(root)); app.get('/*splat', (_req, res) => res.sendFile(path.join(root, 'index.html'))); }
-app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => { console.error(error); res.status(500).json({ error: error instanceof Error ? error.message : 'Unexpected error' }); });
+app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => { console.error(error); res.status(500).json({ error: production ? 'Unexpected error' : error instanceof Error ? error.message : 'Unexpected error' }); });
 
 await initStore();
 await pruneOldSignals();
