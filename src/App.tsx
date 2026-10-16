@@ -23,6 +23,7 @@ function DashboardApp() {
   const [filter, setFilter] = useState<'all' | Priority>('all');
   const [taskOpen, setTaskOpen] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
   const [toast, setToast] = useState('');
 
@@ -48,7 +49,7 @@ function DashboardApp() {
         <button className="add-source" onClick={() => setConnectOpen(true)}><Plus size={15}/> Add a source</button>
       </nav>
       <div className="sidebar-bottom">
-        <button><Settings size={17}/> Settings</button>
+        <button onClick={()=>setSettingsOpen(true)}><Settings size={17}/> Settings</button>
         <div className="profile"><div className="avatar">{data.user.name.split(' ').map(n=>n[0]).slice(0,2).join('')}</div><div><strong>{data.user.name}</strong><span>{data.mode === 'demo' ? 'Demo workspace' : data.user.email}</span></div><ChevronRight size={16}/></div>
       </div>
     </aside>
@@ -97,6 +98,7 @@ function DashboardApp() {
     </main>
     {taskOpen && <TaskModal onClose={()=>setTaskOpen(false)} onSaved={async()=>{setTaskOpen(false);await load();setToast('Added to your focus queue')}}/>}
     {connectOpen && <ConnectModal connections={data.connections} onClose={()=>setConnectOpen(false)}/>} 
+    {settingsOpen&&<SettingsModal data={data} onClose={()=>setSettingsOpen(false)} onChanged={load}/>} 
     {toast && <div className="toast"><Check size={16}/>{toast}</div>}
   </div>;
 }
@@ -108,6 +110,18 @@ function TaskRow({task,index,onToggle}:{task:Task;index:number;onToggle:()=>void
 
 function TaskModal({onClose,onSaved}:{onClose:()=>void;onSaved:()=>void}) { const [title,setTitle]=useState(''); const [priority,setPriority]=useState<Priority>('soon'); const save=async(e:React.FormEvent)=>{e.preventDefault();await fetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,priority,source:'manual'})});onSaved()}; return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><form className="modal" onSubmit={save}><div className="modal-head"><div><span>QUICK CAPTURE</span><h3>What needs to happen?</h3></div><button type="button" onClick={onClose}><X size={20}/></button></div><input autoFocus value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Book dentist appointment" required/><label>Priority</label><div className="priority-select">{(['now','soon','later'] as const).map(p=><button type="button" className={priority===p?'active':''} onClick={()=>setPriority(p)} key={p}>{p}</button>)}</div><button className="primary" type="submit">Add to focus queue <ChevronRight size={16}/></button></form></div> }
 function ConnectModal({connections,onClose}:{connections:Connection[];onClose:()=>void}) { const options:Connection[]=[{id:'gmail-new',provider:'gmail',label:'Gmail',status:'available'},...connections.filter(c=>c.provider!=='gmail')];return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="modal connect-modal"><div className="modal-head"><div><span>SOURCE LIBRARY</span><h3>Connect your world</h3></div><button onClick={onClose}><X size={20}/></button></div><p className="modal-intro">Orbit reads the signals you choose and turns them into one focused brief. Your credentials stay encrypted.</p><div className="connect-grid">{options.map(c=>{const Icon=sourceIcons[c.provider];return <div className="connect-card" key={c.id}><div className={`connect-logo ${c.provider}`}><Icon size={22}/></div><div><strong>{c.label}</strong><span>{c.provider==='gmail'?'Mail, receipts & follow-ups':c.provider==='calendar'?'Events, conflicts & prep':c.provider==='github'?'Reviews, issues & releases':c.provider==='slack'?'Mentions & decisions':'Mail & calendar'}</span></div>{c.provider==='gmail'?<a href="/auth/google">Connect</a>:<button disabled>{c.status==='available'?'Soon':'Waitlist'}</button>}</div>})}</div></div></div> }
+function SettingsModal({data,onClose,onChanged}:{data:Dashboard;onClose:()=>void;onChanged:()=>Promise<void>}){
+  const [confirmation,setConfirmation]=useState('');
+  const disconnect=async(id:string)=>{await fetch(`/api/connections/${id}`,{method:'DELETE'});await onChanged()};
+  const erase=async()=>{if(confirmation!=='DELETE')return;const response=await fetch('/api/account',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmation})});if(response.ok)location.href='/'};
+  return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="modal settings-modal"><div className="modal-head"><div><span>OWNER CONTROLS</span><h3>Privacy & data</h3></div><button onClick={onClose}><X size={20}/></button></div>
+    <div className="settings-section"><h4>Your data</h4><p>Export the normalized signals, tasks, and brief stored in this installation. Provider credentials are excluded.</p><a className="settings-action" href="/api/account/export">Download JSON export</a></div>
+    <div className="settings-section"><h4>Connected sources</h4>{data.connections.filter(c=>c.status==='connected').length===0?<p>No providers connected.</p>:data.connections.filter(c=>c.status==='connected').map(c=><div className="settings-connection" key={c.id}><div><strong>{c.label}</strong><span>{c.accountEmail||c.provider}</span></div><button onClick={()=>disconnect(c.id)}>Disconnect & revoke</button></div>)}</div>
+    <div className="settings-section facts"><h4>Privacy facts</h4><div><span>Raw message storage</span><strong>Off</strong></div><div><span>Telemetry</span><strong>Off</strong></div><div><span>Installation</span><strong>Single-tenant</strong></div></div>
+    <div className="settings-section danger"><h4>Delete this account</h4><p>Revokes connected provider tokens when possible and permanently removes the owner, signals, tasks, connections, and brief from this database.</p><div><input value={confirmation} onChange={e=>setConfirmation(e.target.value)} placeholder="Type DELETE"/><button disabled={confirmation!=='DELETE'} onClick={erase}>Delete everything</button></div></div>
+    <div className="legal-links"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/security">Security</a></div>
+  </div></div>;
+}
 function Welcome({onDemo}:{onDemo:()=>void}) {
   const [config,setConfig]=useState<{ownerConfigured:boolean;gmailConfigured:boolean;databaseConfigured:boolean;demoMode:boolean;ai:{provider:string};privacy:{signalRetentionDays:number}}|null>(null);
   useEffect(()=>{fetch('/api/config').then(r=>r.json()).then(setConfig).catch(()=>null)},[]);
