@@ -18,6 +18,13 @@ export async function initStore() {
     CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id) ON DELETE CASCADE, title TEXT NOT NULL, note TEXT, due_at TIMESTAMPTZ, priority TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', source TEXT NOT NULL, source_signal_id TEXT, created_at TIMESTAMPTZ DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS briefs (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, data JSONB NOT NULL, generated_at TIMESTAMPTZ DEFAULT NOW());
   `);
+  if (process.env.DEMO_MODE !== 'false') {
+    await pool.query('INSERT INTO users(id,email,name,avatar,created_at) VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO NOTHING', [demoUser.id,demoUser.email,demoUser.name,demoUser.avatar || null,demoUser.createdAt]);
+    for (const c of demoConnections) await pool.query('INSERT INTO connections(id,user_id,provider,label,account_email,status,last_synced_at) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(id) DO NOTHING', [c.id,c.userId,c.provider,c.label,c.accountEmail || null,c.status,c.lastSyncedAt || null]);
+    for (const s of demoSignals) await pool.query('INSERT INTO signals(id,user_id,source,source_id,sender,title,summary,occurred_at,category,priority,read,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT(id) DO NOTHING', [s.id,s.userId,s.source,s.sourceId,s.sender,s.title,s.summary,s.occurredAt,s.category,s.priority,s.read,s.metadata || {}]);
+    for (const t of demoTasks) await pool.query('INSERT INTO tasks(id,user_id,title,note,due_at,priority,status,source,source_signal_id,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(id) DO NOTHING', [t.id,t.userId,t.title,t.note || null,t.dueAt || null,t.priority,t.status,t.source,t.sourceSignalId || null,t.createdAt]);
+    await pool.query('INSERT INTO briefs(user_id,data,generated_at) VALUES($1,$2,$3) ON CONFLICT(user_id) DO NOTHING', [demoUser.id,demoBrief,demoBrief.generatedAt]);
+  }
 }
 
 const rowsTo = {
