@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, Bell, CalendarDays, Check, ChevronRight, CircleDollarSign, Clock3, GitBranch, Inbox, LayoutDashboard, Mail, Menu, MessageSquare, Orbit as OrbitIcon, Plane, Plus, RefreshCw, Search, Settings, Sparkles, UserRound, X, Zap } from 'lucide-react';
+import { Activity, Bell, CalendarDays, Check, ChevronRight, CircleDollarSign, Clock3, GitBranch, Inbox, LayoutDashboard, Mail, Menu, MessageSquare, Plane, Plus, RefreshCw, Search, Settings, Sparkles, UserRound, X, Zap } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { Connection, Dashboard, Priority, Signal, Source, Task } from './types';
 
@@ -33,12 +33,12 @@ function DashboardApp() {
   const toggleTask = async (task: Task) => { await fetch(`/api/tasks/${task.id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ status:task.status === 'done' ? 'open' : 'done' }) }); await load(); };
   const visibleSignals = useMemo(() => data?.signals.filter(s => filter === 'all' || s.priority === filter) || [], [data, filter]);
 
-  if (loading) return <div className="loading"><div className="brand-mark"><OrbitIcon size={24}/></div><span>Plotting your orbit…</span></div>;
+  if (loading) return <div className="loading"><img className="brand-image" src="/brand/orbit-mark.svg" alt="Orbit"/><span>Plotting your orbit…</span></div>;
   if (!data) return <Welcome onDemo={async () => { await fetch('/auth/demo',{method:'POST'}); location.reload(); }} />;
 
   return <div className="app-shell">
     <aside className={mobileNav ? 'sidebar open' : 'sidebar'}>
-      <div className="wordmark"><div className="brand-mark"><OrbitIcon size={20}/></div><span>ORBIT</span><button className="mobile-close" onClick={() => setMobileNav(false)}><X size={20}/></button></div>
+      <div className="wordmark"><img className="brand-image" src="/brand/orbit-mark.svg" alt=""/><span>ORBIT</span><button className="mobile-close" onClick={() => setMobileNav(false)}><X size={20}/></button></div>
       <nav>
         <NavItem icon={LayoutDashboard} label="Today" active />
         <NavItem icon={Inbox} label="Signals" count={data.stats.needsYou} />
@@ -126,7 +126,7 @@ function Welcome({onDemo}:{onDemo:()=>void}) {
   const [config,setConfig]=useState<{ownerConfigured:boolean;gmailConfigured:boolean;databaseConfigured:boolean;demoMode:boolean;ai:{provider:string};privacy:{signalRetentionDays:number}}|null>(null);
   useEffect(()=>{fetch('/api/config').then(r=>r.json()).then(setConfig).catch(()=>null)},[]);
   const setupMissing=new URLSearchParams(location.search).get('setup')==='gmail'||config?.gmailConfigured===false||config?.ownerConfigured===false;
-  return <div className="welcome"><div className="welcome-card"><div className="wordmark"><div className="brand-mark"><OrbitIcon size={20}/></div><span>ORBIT</span></div><span className="welcome-tag">YOUR PERSONAL OPERATIONS LAYER</span><h1>Everything important.<br/>Nothing noisy.</h1><p>Orbit turns your real inboxes, calendars, tasks, and work tools into one calm, intelligent daily brief.</p>
+  return <div className="welcome"><div className="welcome-card"><div className="wordmark"><img className="brand-image" src="/brand/orbit-mark.svg" alt=""/><span>ORBIT</span></div><span className="welcome-tag">YOUR PERSONAL OPERATIONS LAYER</span><h1>Everything important.<br/>Nothing noisy.</h1><p>Orbit turns your real inboxes, calendars, tasks, and work tools into one calm, intelligent daily brief.</p>
     {setupMissing&&<div className="setup-note"><strong>Owner setup is not finished yet.</strong><span>Add OWNER_EMAIL and Google OAuth credentials to this deployment before connecting a real inbox. No sample data is being shown.</span></div>}
     <div className="welcome-actions">{config?.gmailConfigured?<a href="/auth/google"><Mail size={17}/> Continue with Gmail</a>:<button disabled><Mail size={17}/> Gmail setup required</button>}{config?.demoMode&&<button onClick={onDemo}><Sparkles size={17}/> Explore labeled sample data</button>}</div>
     <div className="privacy-chips"><span>Owner: {config?.ownerConfigured?'locked':'not set'}</span><span>AI: {config?.ai.provider||'checking'}</span><span>Raw bodies: never stored</span><span>Retention: {config?.privacy.signalRetentionDays||30} days</span></div><small>Open source · Self-hostable · Your data stays yours</small><div className="legal-links"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/security">Security</a><a href="https://github.com/advaidg/orbit-personal-cockpit">Source code</a></div></div></div>
@@ -160,5 +160,5 @@ function LegalPage({type}:{type:'privacy'|'terms'|'security'}){
       ['Reporting','Do not report vulnerabilities containing personal data in a public issue. Use GitHub private vulnerability reporting for the repository.']
     ]}
   }[type];
-  return <div className="legal-page"><header><a href="/" className="wordmark"><div className="brand-mark"><OrbitIcon size={20}/></div><span>ORBIT</span></a><nav><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/security">Security</a></nav></header><main><span className="welcome-tag">SELF-HOSTED · SINGLE-TENANT</span><h1>{content.title}</h1><p className="legal-date">{content.updated}</p><p className="legal-intro">{content.intro}</p>{content.sections.map(([title,body])=><section key={title}><h2>{title}</h2><p>{body}</p></section>)}</main><footer><span>Orbit open-source project</span><a href="https://github.com/advaidg/orbit-personal-cockpit">View source</a></footer></div>;
+  return <div className="legal-page"><header><a href="/" className="wordmark"><img className="brand-image" src="/brand/orbit-mark.svg" alt=""/><span>ORBIT</span></a><nav><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/security">Security</a></nav></header><main><span className="welcome-tag">SELF-HOSTED · SINGLE-TENANT</span><h1>{content.title}</h1><p className="legal-date">{content.updated}</p><p className="legal-intro">{content.intro}</p>{content.sections.map(([title,body])=><section key={title}><h2>{title}</h2><p>{body}</p></section>)}</main><footer><span>Orbit open-source project</span><a href="https://github.com/advaidg/orbit-personal-cockpit">View source</a></footer></div>;
 }

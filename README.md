@@ -1,6 +1,13 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="public/brand/orbit-lockup-dark.svg">
+  <img src="public/brand/orbit-lockup-light.svg" alt="Orbit — Everything important. Nothing noisy." width="620">
+</picture>
+
 # Orbit
 
 **Everything important. Nothing noisy.**
+
+Brand assets and usage guidance are available in [`public/brand`](public/brand/BRAND.md).
 
 Orbit is an open-source personal operations cockpit. It turns the scattered signals in your inboxes, calendars, tasks, and work tools into one calm daily brief: what changed, what needs you, what you are waiting on, and what can safely wait.
 

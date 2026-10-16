@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">Orbit monochrome logo mark</title>
+  <rect x="10" y="10" width="236" height="236" rx="58" fill="currentColor"/>
+  <ellipse cx="128" cy="128" rx="75" ry="41" fill="none" stroke="#fff" stroke-width="8" transform="rotate(-28 128 128)"/>
+  <ellipse cx="128" cy="128" rx="75" ry="41" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="5" transform="rotate(58 128 128)"/>
+  <circle cx="128" cy="128" r="24" fill="#fff"/>
+  <circle cx="128" cy="128" r="11" fill="currentColor"/>
+  <circle cx="194" cy="91" r="9" fill="#fff" stroke="currentColor" stroke-width="4"/>
+</svg>

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Orbit logo mark</title>
+  <desc id="desc">A luminous center surrounded by two intersecting orbital paths.</desc>
+  <defs>
+    <linearGradient id="bg" x1="38" y1="25" x2="216" y2="231" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#232B20"/>
+      <stop offset="1" stop-color="#10130F"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="52" y1="61" x2="205" y2="194" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E7FFAA"/>
+      <stop offset="1" stop-color="#91B743"/>
+    </linearGradient>
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect x="10" y="10" width="236" height="236" rx="58" fill="url(#bg)" stroke="#3D4935" stroke-width="4"/>
+  <ellipse cx="128" cy="128" rx="75" ry="41" fill="none" stroke="url(#ring)" stroke-width="8" transform="rotate(-28 128 128)"/>
+  <ellipse cx="128" cy="128" rx="75" ry="41" fill="none" stroke="#C8F169" stroke-opacity=".42" stroke-width="5" transform="rotate(58 128 128)"/>
+  <circle cx="128" cy="128" r="24" fill="#C8F169" filter="url(#glow)"/>
+  <circle cx="128" cy="128" r="11" fill="#172012"/>
+  <circle cx="194" cy="91" r="9" fill="#FF7B67" stroke="#10130F" stroke-width="4"/>
+</svg>
