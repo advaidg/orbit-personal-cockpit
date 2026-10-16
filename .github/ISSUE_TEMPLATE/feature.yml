@@ -1,0 +1,25 @@
+name: Feature idea
+description: Suggest a focused improvement to Orbit
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What attention problem does this solve?
+      description: Describe the situation before proposing the interface.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Product surface
+      options: [Today, Waiting on, Timeline, People, Life admin, Ask Orbit, Connector, Self-hosting]
+    validations:
+      required: true
