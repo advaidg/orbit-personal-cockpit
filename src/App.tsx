@@ -8,7 +8,15 @@ const categoryIcons: Record<string, typeof Mail> = { action: Zap, waiting: Clock
 
 function timeAgo(value?: string) { return value ? formatDistanceToNow(new Date(value), { addSuffix: true }) : 'Never'; }
 
-export function App() {
+export function App(){
+  const page=location.pathname.replace(/\/$/,'');
+  if(page==='/privacy')return <LegalPage type="privacy"/>;
+  if(page==='/terms')return <LegalPage type="terms"/>;
+  if(page==='/security')return <LegalPage type="security"/>;
+  return <DashboardApp/>;
+}
+
+function DashboardApp() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -101,11 +109,42 @@ function TaskRow({task,index,onToggle}:{task:Task;index:number;onToggle:()=>void
 function TaskModal({onClose,onSaved}:{onClose:()=>void;onSaved:()=>void}) { const [title,setTitle]=useState(''); const [priority,setPriority]=useState<Priority>('soon'); const save=async(e:React.FormEvent)=>{e.preventDefault();await fetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,priority,source:'manual'})});onSaved()}; return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><form className="modal" onSubmit={save}><div className="modal-head"><div><span>QUICK CAPTURE</span><h3>What needs to happen?</h3></div><button type="button" onClick={onClose}><X size={20}/></button></div><input autoFocus value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Book dentist appointment" required/><label>Priority</label><div className="priority-select">{(['now','soon','later'] as const).map(p=><button type="button" className={priority===p?'active':''} onClick={()=>setPriority(p)} key={p}>{p}</button>)}</div><button className="primary" type="submit">Add to focus queue <ChevronRight size={16}/></button></form></div> }
 function ConnectModal({connections,onClose}:{connections:Connection[];onClose:()=>void}) { const options:Connection[]=[{id:'gmail-new',provider:'gmail',label:'Gmail',status:'available'},...connections.filter(c=>c.provider!=='gmail')];return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="modal connect-modal"><div className="modal-head"><div><span>SOURCE LIBRARY</span><h3>Connect your world</h3></div><button onClick={onClose}><X size={20}/></button></div><p className="modal-intro">Orbit reads the signals you choose and turns them into one focused brief. Your credentials stay encrypted.</p><div className="connect-grid">{options.map(c=>{const Icon=sourceIcons[c.provider];return <div className="connect-card" key={c.id}><div className={`connect-logo ${c.provider}`}><Icon size={22}/></div><div><strong>{c.label}</strong><span>{c.provider==='gmail'?'Mail, receipts & follow-ups':c.provider==='calendar'?'Events, conflicts & prep':c.provider==='github'?'Reviews, issues & releases':c.provider==='slack'?'Mentions & decisions':'Mail & calendar'}</span></div>{c.provider==='gmail'?<a href="/auth/google">Connect</a>:<button disabled>{c.status==='available'?'Soon':'Waitlist'}</button>}</div>})}</div></div></div> }
 function Welcome({onDemo}:{onDemo:()=>void}) {
-  const [config,setConfig]=useState<{gmailConfigured:boolean;demoMode:boolean;ai:{provider:string};privacy:{signalRetentionDays:number}}|null>(null);
+  const [config,setConfig]=useState<{ownerConfigured:boolean;gmailConfigured:boolean;databaseConfigured:boolean;demoMode:boolean;ai:{provider:string};privacy:{signalRetentionDays:number}}|null>(null);
   useEffect(()=>{fetch('/api/config').then(r=>r.json()).then(setConfig).catch(()=>null)},[]);
-  const setupMissing=new URLSearchParams(location.search).get('setup')==='gmail'||config?.gmailConfigured===false;
+  const setupMissing=new URLSearchParams(location.search).get('setup')==='gmail'||config?.gmailConfigured===false||config?.ownerConfigured===false;
   return <div className="welcome"><div className="welcome-card"><div className="wordmark"><div className="brand-mark"><OrbitIcon size={20}/></div><span>ORBIT</span></div><span className="welcome-tag">YOUR PERSONAL OPERATIONS LAYER</span><h1>Everything important.<br/>Nothing noisy.</h1><p>Orbit turns your real inboxes, calendars, tasks, and work tools into one calm, intelligent daily brief.</p>
-    {setupMissing&&<div className="setup-note"><strong>Owner setup is not finished yet.</strong><span>Add Google OAuth credentials to this deployment before connecting a real inbox. No sample data is being shown.</span></div>}
+    {setupMissing&&<div className="setup-note"><strong>Owner setup is not finished yet.</strong><span>Add OWNER_EMAIL and Google OAuth credentials to this deployment before connecting a real inbox. No sample data is being shown.</span></div>}
     <div className="welcome-actions">{config?.gmailConfigured?<a href="/auth/google"><Mail size={17}/> Continue with Gmail</a>:<button disabled><Mail size={17}/> Gmail setup required</button>}{config?.demoMode&&<button onClick={onDemo}><Sparkles size={17}/> Explore labeled sample data</button>}</div>
-    <div className="privacy-chips"><span>AI: {config?.ai.provider||'checking'}</span><span>Raw bodies: never stored</span><span>Retention: {config?.privacy.signalRetentionDays||30} days</span></div><small>Open source · Self-hostable · Your data stays yours</small></div></div>
+    <div className="privacy-chips"><span>Owner: {config?.ownerConfigured?'locked':'not set'}</span><span>AI: {config?.ai.provider||'checking'}</span><span>Raw bodies: never stored</span><span>Retention: {config?.privacy.signalRetentionDays||30} days</span></div><small>Open source · Self-hostable · Your data stays yours</small><div className="legal-links"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/security">Security</a><a href="https://github.com/advaidg/orbit-personal-cockpit">Source code</a></div></div></div>
+}
+
+function LegalPage({type}:{type:'privacy'|'terms'|'security'}){
+  const content={
+    privacy:{title:'Privacy policy',updated:'Effective October 15, 2026',intro:'Orbit is self-hosted software. The person who deploys an Orbit instance controls that instance and its data. The Orbit open-source project does not operate a central user database or receive data from independent installations.',sections:[
+      ['Information the instance accesses','When its owner connects Google, Orbit requests read-only Gmail access plus basic Google identity information. It reads recent messages to identify actions, deadlines, changes, and low-signal mail. Orbit does not send, edit, or delete email.'],
+      ['Information the instance stores','Orbit stores the owner profile, encrypted OAuth credentials, short normalized signals, tasks, connection status, and the latest brief in the instance’s PostgreSQL database. Raw email bodies are processed transiently and are not stored.'],
+      ['AI processing','Rules-only mode sends no message content to an AI provider. If the owner explicitly configures OpenAI, Anthropic, or a compatible provider, bounded message excerpts are sent to that provider to produce the requested classification or brief. The selected provider’s terms and privacy policy apply.'],
+      ['Sharing and selling','Orbit does not contain advertising, analytics, data brokerage, or a central telemetry service. The project does not sell personal information. A self-host operator is responsible for any additional services or modifications they enable.'],
+      ['Retention and deletion','Normalized signals expire according to SIGNAL_RETENTION_DAYS, which defaults to 30 days. Owners can export their Orbit data, disconnect providers, revoke credentials, or permanently delete their account and associated database records. Infrastructure backups remain subject to the operator’s Railway or hosting configuration.'],
+      ['Google API Limited Use','Orbit’s use and transfer of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements. Google user data is used only to provide visible, owner-requested Orbit features and is not used to train a generalized or cross-user AI model.'],
+      ['Security','Provider tokens are encrypted before storage. Production deployments use HTTPS, secure HTTP-only cookies, owner allowlisting, rate limits, and same-origin mutation checks. No system is perfectly secure; operators should keep dependencies updated and protect their encryption keys.'],
+      ['Contact','For the open-source project, use GitHub private vulnerability reporting for security concerns. Questions about a particular installation should be directed to that installation’s operator.']
+    ]},
+    terms:{title:'Terms of use',updated:'Effective October 15, 2026',intro:'Orbit is open-source, self-hosted software provided under the MIT License. These terms describe the upstream project; each independent operator is responsible for their own deployment.',sections:[
+      ['Your installation','You control the infrastructure, credentials, connected accounts, AI provider, users, retention settings, and costs for your deployment. Orbit is not a hosted email or AI service provided by the upstream maintainers.'],
+      ['Permitted use','Use Orbit only with accounts and data you are authorized to access. Follow Google, AI-provider, hosting-provider, and applicable legal requirements. Do not use Orbit for surveillance, unauthorized access, spam, discrimination, or unlawful profiling.'],
+      ['Third-party services','Google, Railway, OpenAI, Anthropic, and other optional services operate under their own terms. The Orbit project does not control their availability, pricing, data practices, or account decisions.'],
+      ['No professional advice','Orbit summaries and priorities may be incomplete or incorrect. They are not legal, medical, financial, or safety advice. Review original sources before making consequential decisions.'],
+      ['No warranty','The software is provided “as is,” without warranties of merchantability, fitness for a particular purpose, or non-infringement, as stated in the MIT License.'],
+      ['Changes','Operators should review release notes before upgrading. Material changes to these upstream terms will be recorded in the public repository.']
+    ]},
+    security:{title:'Security model',updated:'Reviewed October 15, 2026',intro:'Orbit is designed as a private, single-tenant installation. Security depends on both the upstream code and how each owner configures their infrastructure.',sections:[
+      ['Isolation','Every owner deploys an independent application and database. OWNER_EMAIL restricts sign-in to the configured Google identity. There is no shared Orbit tenant or central administration service.'],
+      ['Credentials','OAuth tokens are encrypted with AES-256-GCM using APP_ENCRYPTION_KEY. Secrets remain server-side and must be stored in the hosting provider’s protected environment-variable system.'],
+      ['Data minimization','Raw bodies are not persisted. External AI is optional. Signals automatically expire. Export excludes encrypted credentials. Disconnect and account deletion attempt provider-token revocation before removing local records.'],
+      ['Operational responsibilities','Use unique generated secrets, HTTPS, database backups, dependency updates, and restricted project access. Never reuse production encryption keys in public examples or support messages.'],
+      ['Reporting','Do not report vulnerabilities containing personal data in a public issue. Use GitHub private vulnerability reporting for the repository.']
+    ]}
+  }[type];
+  return <div className="legal-page"><header><a href="/" className="wordmark"><div className="brand-mark"><OrbitIcon size={20}/></div><span>ORBIT</span></a><nav><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/security">Security</a></nav></header><main><span className="welcome-tag">SELF-HOSTED · SINGLE-TENANT</span><h1>{content.title}</h1><p className="legal-date">{content.updated}</p><p className="legal-intro">{content.intro}</p>{content.sections.map(([title,body])=><section key={title}><h2>{title}</h2><p>{body}</p></section>)}</main><footer><span>Orbit open-source project</span><a href="https://github.com/advaidg/orbit-personal-cockpit">View source</a></footer></div>;
 }

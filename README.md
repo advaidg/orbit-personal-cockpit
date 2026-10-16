@@ -62,10 +62,12 @@ Then populate `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`.
 2. In Railway, create a project from the repository.
 3. Add a PostgreSQL service. Railway injects `DATABASE_URL` automatically.
 4. Generate a public domain for the Orbit service.
-5. Set the variables from `.env.example`, with `APP_URL` set to the Railway domain.
+5. Set the variables from `.env.example`, with `APP_URL` set to the Railway domain and `OWNER_EMAIL` set to the only Google account allowed into the installation.
 6. Add `https://YOUR-DOMAIN/auth/google/callback` to the Google OAuth client.
 
 Railway detects the root `Dockerfile`; `/health` is configured as the deployment health check.
+
+Complete instructions are in [docs/INSTALL.md](docs/INSTALL.md). Every installation exposes public `/privacy`, `/terms`, and `/security` pages for Google OAuth configuration while keeping the dashboard itself owner-only.
 
 For a public one-click template, follow [the template publishing checklist](docs/RAILWAY_TEMPLATE.md) after the GitHub repository is public. Railway assigns the final template code, which can then be added as a Deploy button here.
 
@@ -91,6 +93,8 @@ See [AI providers](docs/AI_PROVIDERS.md) and [data and privacy](docs/DATA_AND_PR
 - OAuth tokens are encrypted with AES-256-GCM before persistence.
 - `APP_ENCRYPTION_KEY` and `SESSION_SECRET` must be unique production secrets.
 - API credentials never ship to the browser.
+- `OWNER_EMAIL` makes the default deployment single-tenant and rejects other Google identities.
+- Account export omits encrypted credentials; disconnect and deletion attempt provider-token revocation.
 - Raw email bodies are processed transiently and are never stored in PostgreSQL.
 - Normalized signals expire after `SIGNAL_RETENTION_DAYS` (30 by default).
 - `AI_PROVIDER=rules` keeps message content away from external AI providers.

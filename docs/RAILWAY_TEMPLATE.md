@@ -19,10 +19,13 @@ Configure these Orbit variables:
 | `SESSION_SECRET` | `${{secret(64, "abcdef0123456789")}}` |
 | `APP_ENCRYPTION_KEY` | `${{secret(64, "abcdef0123456789")}}` |
 | `SYNC_CRON` | `*/30 * * * *` |
-| `DEMO_MODE` | `true` |
+| `OWNER_EMAIL` | required prompt; the only Google account allowed to sign in |
 | `GOOGLE_CLIENT_ID` | prompt the deployer |
 | `GOOGLE_CLIENT_SECRET` | prompt the deployer |
+| `AI_PROVIDER` | `rules` |
 | `OPENAI_API_KEY` | optional prompt |
+| `SIGNAL_RETENTION_DAYS` | `30` |
+| `DEMO_MODE` | `false` |
 
 After deploying the project successfully:
 
@@ -36,6 +39,6 @@ After deploying the project successfully:
 [![Deploy on Railway](https://railway.com/button.svg)](YOUR_TEMPLATE_URL)
 ```
 
-6. Add the live demo project in the template settings once the public demo is stable.
+6. Optionally add a separate, clearly labeled showcase project. Never attach real accounts to a shared showcase.
 
-Before announcing on Reddit, test the template in a clean Railway workspace and verify that a new deployer can reach demo mode before adding Google credentials.
+Before announcing on Reddit, test the template in a clean Railway workspace and verify that a new deployer sees the setup checklist, cannot sign in as a different Google identity, and can delete all installation data.

@@ -17,6 +17,7 @@
     "date-fns": "latest",
     "dotenv": "latest",
     "express": "latest",
+    "express-rate-limit": "latest",
     "googleapis": "latest",
     "helmet": "latest",
     "lucide-react": "latest",

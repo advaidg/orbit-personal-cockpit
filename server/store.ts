@@ -87,4 +87,12 @@ export async function pruneOldSignals() {
   const days = Math.max(1, Number(process.env.SIGNAL_RETENTION_DAYS || 30));
   await pool.query("DELETE FROM signals WHERE occurred_at < NOW() - ($1 * INTERVAL '1 day')", [days]);
 }
+export async function deleteConnection(userId:string,id:string){
+  if(!pool){const index=memory.connections.findIndex(c=>c.id===id&&c.userId===userId);if(index<0)return null;return memory.connections.splice(index,1)[0];}
+  const {rows}=await pool.query('DELETE FROM connections WHERE id=$1 AND user_id=$2 RETURNING *',[id,userId]);return rows[0]?rowsTo.connection(rows[0]):null;
+}
+export async function deleteUser(userId:string){
+  if(!pool){memory.users.delete(userId);memory.connections=memory.connections.filter(x=>x.userId!==userId);memory.signals=memory.signals.filter(x=>x.userId!==userId);memory.tasks=memory.tasks.filter(x=>x.userId!==userId);memory.briefs.delete(userId);return;}
+  await pool.query('DELETE FROM users WHERE id=$1',[userId]);
+}
 export { pool };
