@@ -18,7 +18,8 @@ export type SmtpVerifier = (url: string) => Promise<void>;
 export type KeyVerifier = (provider: 'openai' | 'anthropic', key: string) => Promise<'ok' | 'rejected' | 'unreachable'>;
 
 const realSmtpVerifier: SmtpVerifier = async (url) => {
-  await nodemailer.createTransport(url, { connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 15_000 }).verify();
+  // Timeouts live in the transport options (the second argument of createTransport is for mail defaults).
+  await nodemailer.createTransport({ url, connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 15_000 }).verify();
 };
 
 const realKeyVerifier: KeyVerifier = async (provider, key) => {
