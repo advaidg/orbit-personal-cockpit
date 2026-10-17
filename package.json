@@ -48,7 +48,7 @@
     "open": "^11.0.4",
     "tsx": "latest",
     "typescript": "latest",
-    "vitest": "^3.2.7"
+    "vitest": "^4.1.12"
   },
   "engines": {
     "node": ">=20"
