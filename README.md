@@ -39,6 +39,10 @@ Most dashboards show more data. Orbit makes fewer demands on your attention.
 - PostgreSQL in production; zero-setup in-memory demo locally
 - Health check and production Docker image
 
+## Agent (new)
+
+Orbit now proposes work instead of only showing it: draft replies, waiting-on tracking, deadlines, reminders, automations and calendar suggestions, all through an Approval Center. See [docs/AGENT.md](docs/AGENT.md) for the safety model, limits and environment controls.
+
 ## Local setup
 
 ```bash

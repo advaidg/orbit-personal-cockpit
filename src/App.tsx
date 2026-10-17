@@ -1,7 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, Bell, CalendarDays, Check, ChevronRight, CircleDollarSign, Clock3, GitBranch, Inbox, LayoutDashboard, Mail, Menu, MessageSquare, Plane, Plus, RefreshCw, Search, Settings, Sparkles, UserRound, X, Zap } from 'lucide-react';
+import { Activity, Brain, CalendarDays, Check, ChevronRight, CircleDollarSign, Clock3, GitBranch, Inbox, LayoutDashboard, Mail, Menu, MessageSquare, Pause, Plane, Plug, Play, Plus, RefreshCw, Search, Settings, ShieldCheck, Sparkles, UserRound, Workflow, X, Zap } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import type { AiProvider, Connection, Dashboard, Priority, Signal, Source, Task } from './types';
+import type { AgentState, AiProvider, Connection, Dashboard, JobInfo, Priority, Signal, Source, Task } from './types';
+import { api } from './api';
+import { useHash, useLoad } from './hooks';
+import { AgentControls } from './features/AgentControls';
+import { ApprovalCenter } from './features/ApprovalCenter';
+import { AskPanel } from './features/AskPanel';
+import { Automations } from './features/Automations';
+import { Connections } from './features/Connections';
+import { Inbox as InboxView } from './features/Inbox';
+import { Memory } from './features/Memory';
+import { NotificationBell } from './features/Notifications';
+import { Runs } from './features/Runs';
+import { useSync } from './features/useSync';
+import { WaitingOn } from './features/WaitingOn';
+import './agent.css';
 
 const sourceIcons: Record<Source, typeof Mail> = { gmail: Mail, outlook: Inbox, calendar: CalendarDays, github: GitBranch, slack: MessageSquare, manual: UserRound };
 const categoryIcons: Record<string, typeof Mail> = { action: Zap, waiting: Clock3, calendar: CalendarDays, money: CircleDollarSign, travel: Plane, people: UserRound, noise: Inbox };
@@ -19,7 +33,6 @@ export function App(){
 function DashboardApp() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [filter, setFilter] = useState<'all' | Priority>('all');
   const [taskOpen, setTaskOpen] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
@@ -30,12 +43,18 @@ function DashboardApp() {
   const [query, setQuery] = useState('');
   const [showAllSignals, setShowAllSignals] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<Source|null>(null);
-  const [section, setSection] = useState<'today'|'signals'|'tasks'|'timeline'|'activity'>('today');
+  const [hash,setHash]=useHash();
+  const view=(['focus','inbox','waiting','approvals','automations','memory','runs','connections'] as const).find(name=>hash===name||hash.startsWith(`${name}/`))||'focus';
+  const focusId=hash.startsWith('inbox/')?hash.slice(6):undefined;
+  const agentState=useLoad(()=>api.get<AgentState>('/api/agent/state'));
+  const agent=agentState.data;
 
   const load = async () => { const response = await fetch('/api/dashboard'); if (!response.ok) throw new Error('Could not load dashboard'); setData(await response.json()); setLoading(false); };
   useEffect(() => { load().catch(() => setLoading(false)); }, []);
   useEffect(()=>{const handler=(event:KeyboardEvent)=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();document.querySelector<HTMLInputElement>('.search input')?.focus();}};addEventListener('keydown',handler);return()=>removeEventListener('keydown',handler)},[]);
-  const sync = async () => { setSyncing(true); try { const response=await fetch('/api/sync',{method:'POST'});const result=await response.json();if(!response.ok)throw new Error(result.error||'Sync failed');await load();setToast(result.connections===0?'Connect Gmail before syncing':result.processed===0?'Sync complete · no new messages':`Sync complete · ${result.processed} new message${result.processed===1?'':'s'}`); } catch(error) { await load().catch(()=>undefined);setToast(error instanceof Error?error.message:'Sync needs attention'); } finally { setSyncing(false); setTimeout(() => setToast(''), 5200); } };
+  const notify=(message:string)=>{setToast(message);setTimeout(()=>setToast(''),5200)};
+  const refreshAll=async()=>{await Promise.all([load().catch(()=>undefined),agentState.reload()])};
+  const syncer=useSync(notify,refreshAll);
   const toggleTask = async (task: Task) => { await fetch(`/api/tasks/${task.id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ status:task.status === 'done' ? 'open' : 'done' }) }); await load(); };
   const normalizedQuery=query.trim().toLowerCase();
   const matchingSignals = useMemo(() => data?.signals.filter(s => (filter === 'all' || s.priority === filter) && (!sourceFilter||s.source===sourceFilter) && (!normalizedQuery||`${s.title} ${s.summary} ${s.sender} ${s.source}`.toLowerCase().includes(normalizedQuery))) || [], [data, filter, sourceFilter, normalizedQuery]);
@@ -43,39 +62,15 @@ function DashboardApp() {
   const visibleTasks=useMemo(()=>data?.tasks.filter(t=>t.status==='open'&&(!normalizedQuery||`${t.title} ${t.note||''} ${t.source}`.toLowerCase().includes(normalizedQuery)))||[],[data,normalizedQuery]);
   const syncError=data?.connections.find(connection=>connection.lastSyncError)?.lastSyncError;
   const latestSync=data?.connections.map(connection=>connection.lastSyncedAt).filter(Boolean).sort().at(-1);
-  const go=(next:typeof section,target?:string)=>{setSection(next);setMobileNav(false);if(next==='today'){setSourceFilter(null);setFilter('all');scrollTo({top:0,behavior:'smooth'});}else setTimeout(()=>document.getElementById(target||next)?.scrollIntoView({behavior:'smooth',block:'start'}),0)};
+  const go=(next:typeof view)=>{setMobileNav(false);setHash(next);scrollTo({top:0});};
+  const openSignal=(id:string)=>{setHash(`inbox/${id}`);setTimeout(()=>document.getElementById(`signal-${id}`)?.scrollIntoView({behavior:'smooth',block:'center'}),150);};
+  const navigateLink=(link:string)=>{const match=/signal-([\w-]+)/.exec(link);if(match)openSignal(match[1]);else setHash('approvals');};
+  const togglePause=async()=>{if(!agent)return;await api.patch('/api/agent/settings',{paused:!agent.settings.paused});await refreshAll();notify(agent.settings.paused?'Agent resumed':'Agent paused. Schedules and actions are stopped.');};
 
   if (loading) return <div className="loading"><img className="brand-image" src="/brand/orbit-mark.svg" alt="Orbit"/><span>Plotting your orbit…</span></div>;
   if (!data) return <Welcome onDemo={async () => { await fetch('/auth/demo',{method:'POST'}); location.reload(); }} />;
 
-  return <div className="app-shell">
-    <aside className={mobileNav ? 'sidebar open' : 'sidebar'}>
-      <div className="wordmark"><img className="brand-image" src="/brand/orbit-mark.svg" alt=""/><span>ORBIT</span><button className="mobile-close" onClick={() => setMobileNav(false)}><X size={20}/></button></div>
-      <nav>
-        <NavItem icon={LayoutDashboard} label="Today" active={section==='today'} onClick={()=>go('today')} />
-        <NavItem icon={Inbox} label="Signals" count={data.stats.needsYou} active={section==='signals'} onClick={()=>{setShowAllSignals(true);go('signals')}} />
-        <NavItem icon={Check} label="Tasks" count={data.tasks.filter(t => t.status === 'open').length} active={section==='tasks'} onClick={()=>go('tasks')} />
-        <NavItem icon={CalendarDays} label="Timeline" active={section==='timeline'} onClick={()=>{setShowAllSignals(true);setFilter('all');go('timeline','signals')}} />
-        <NavItem icon={Activity} label="Activity" count={data.activity.filter(item=>item.status==='error').length||undefined} active={section==='activity'} onClick={()=>go('activity')} />
-        <div className="nav-label">Sources</div>
-        {data.connections.filter(c => c.status === 'connected').map(c => <NavItem key={c.id} icon={sourceIcons[c.provider]} label={c.label} dot active={sourceFilter===c.provider} onClick={()=>{setSourceFilter(c.provider);go('signals')}} />)}
-        <button className="add-source" onClick={() => setConnectOpen(true)}><Plus size={15}/> Add a source</button>
-      </nav>
-      <div className="sidebar-bottom">
-        <button onClick={()=>setSettingsOpen(true)}><Settings size={17}/> Settings</button>
-        <button className="profile" onClick={()=>setSettingsOpen(true)}><div className="avatar">{data.user.name.split(' ').map(n=>n[0]).slice(0,2).join('')}</div><div><strong>{data.user.name}</strong><span>{data.mode === 'demo' ? 'Demo workspace' : data.user.email}</span></div><ChevronRight size={16}/></button>
-      </div>
-    </aside>
-
-    <main>
-      <header className="topbar">
-        <button className="menu-btn" onClick={() => setMobileNav(true)}><Menu size={22}/></button>
-        <label className="search"><Search size={17}/><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search your orbit"/><kbd>⌘ K</kbd></label>
-        <div className="top-actions"><span className={`sync-state ${syncError?'failed':''}`} title={syncError||undefined}><i/>{syncError?'Sync failed':data.settings.autoSync?`Synced ${timeAgo(latestSync)}`:'Auto-sync paused'}</span><button className="icon-btn" title="Show urgent signals" onClick={()=>{setFilter('now');go('signals')}}><Bell size={18}/>{data.signals.some(s=>s.priority==='now')&&<b/>}</button><button className="sync-btn" onClick={sync} disabled={syncing}><RefreshCw size={16} className={syncing ? 'spin':''}/><span>{syncing?'Syncing':'Sync now'}</span></button></div>
-      </header>
-
-      <div className="content">
-        {data.mode === 'demo' && <div className="demo-banner"><span><Sparkles size={15}/> You’re exploring a live demo with sample data.</span><button onClick={() => setConnectOpen(true)}>Connect your world <ChevronRight size={15}/></button></div>}
+  const focus=<>
         <section className="hero-head"><div><p>{data.greeting}, {data.user.name.split(' ')[0]}</p><h1>Here’s what needs you.</h1></div><div className="date-stamp"><span>{new Intl.DateTimeFormat('en-US',{weekday:'long'}).format(new Date())}</span><strong>{new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric'}).format(new Date()).toUpperCase()}</strong></div></section>
 
         <section className="brief-card">
@@ -101,24 +96,75 @@ function DashboardApp() {
 
           <section className="panel focus-panel" id="tasks">
             <div className="panel-head"><div><h3>Focus queue</h3><p>Your next best actions</p></div><button className="round-add" onClick={()=>setTaskOpen(true)}><Plus size={18}/></button></div>
-            <div className="task-list">{(section==='tasks'?visibleTasks:visibleTasks.slice(0,5)).map((task,i)=><TaskRow key={task.id} task={task} index={i} onToggle={()=>toggleTask(task)}/>) }{visibleTasks.length===0&&<EmptyState text={normalizedQuery?'No tasks match your search.':'Your focus queue is clear.'}/>}</div>
+            <div className="task-list">{visibleTasks.slice(0,6).map((task,i)=><TaskRow key={task.id} task={task} index={i} onToggle={()=>toggleTask(task)}/>) }{visibleTasks.length===0&&<EmptyState text={normalizedQuery?'No tasks match your search.':'Your focus queue is clear.'}/>}</div>
             <button className="quick-add" onClick={()=>setTaskOpen(true)}><Plus size={16}/> Capture something</button>
           </section>
         </div>
 
-        <section className="source-strip"><div><div className="pulse-icon"><Activity size={18}/></div><div><strong>Your world, connected</strong><span>{data.connections.filter(c=>c.status==='connected').length} sources are feeding your brief · {data.system.persistent?'PostgreSQL persistent storage':'Temporary memory storage'}</span></div></div><div className="source-icons">{data.connections.map(c=>{const Icon=sourceIcons[c.provider];return <button key={c.id} title={c.lastSyncError||`Filter by ${c.label}`} className={c.status} onClick={()=>{if(c.status==='connected'){setSourceFilter(c.provider);go('signals')}else setSettingsOpen(true)}}><Icon size={18}/>{c.status==='connected'&&<i/>}</button>})}<button className="source-plus" title="Add a source" onClick={()=>setConnectOpen(true)}><Plus size={18}/></button></div></section>
-        <ActivityLog items={data.activity} onClear={async()=>{await fetch('/api/activity',{method:'DELETE'});await load()}}/>
+        <section className="source-strip"><div><div className="pulse-icon"><Activity size={18}/></div><div><strong>Your world, connected</strong><span>{data.connections.filter(c=>c.status==='connected').length} sources are feeding your brief · {data.system.persistent?'PostgreSQL persistent storage':'Temporary memory storage'}</span></div></div><div className="source-icons">{data.connections.map(c=>{const Icon=sourceIcons[c.provider];return <button key={c.id} title={c.lastSyncError||`Filter by ${c.label}`} className={c.status} onClick={()=>{if(c.status==='connected'){go('connections')}else go('connections')}}><Icon size={18}/>{c.status==='connected'&&<i/>}</button>})}<button className="source-plus" title="Add a source" onClick={()=>setConnectOpen(true)}><Plus size={18}/></button></div></section>
+      </>;
+  const navItem=(name:typeof view,icon:typeof Mail,label:string,count?:number,alert?:boolean)=><NavItem key={name} icon={icon} label={label} count={count} alert={alert} active={view===name} onClick={()=>go(name)}/>;
+  const activity=<ActivityLog items={data.activity} onClear={async()=>{await fetch('/api/activity',{method:'DELETE'});await load()}}/>;
+  const paused=!!agent?.settings.paused;
+
+  return <div className="app-shell">
+    <aside className={mobileNav ? 'sidebar open' : 'sidebar'} aria-label="Primary">
+      <div className="wordmark"><img className="brand-image" src="/brand/orbit-mark.svg" alt=""/><span>ORBIT</span><button className="mobile-close" aria-label="Close menu" onClick={() => setMobileNav(false)}><X size={20}/></button></div>
+      <nav aria-label="Sections">
+        {navItem('inbox',Inbox,'Inbox',data.stats.needsYou||undefined)}
+        {navItem('focus',LayoutDashboard,'Focus',data.tasks.filter(t=>t.status==='open').length||undefined)}
+        {navItem('waiting',Clock3,'Waiting On',data.agent.openCommitments||undefined)}
+        {navItem('approvals',ShieldCheck,'Approvals',data.agent.pendingApprovals||undefined,data.agent.pendingApprovals>0)}
+        {navItem('automations',Workflow,'Automations')}
+        {navItem('memory',Brain,'Memory')}
+        {navItem('runs',Activity,'Runs',data.activity.filter(item=>item.status==='error').length||undefined)}
+        {navItem('connections',Plug,'Connections',data.connections.some(c=>c.lastSyncError)?1:undefined,data.connections.some(c=>c.lastSyncError))}
+        <div className="nav-label">Sources</div>
+        {data.connections.filter(c => c.status === 'connected').map(c => <NavItem key={c.id} icon={sourceIcons[c.provider]} label={c.label} dot onClick={()=>go('connections')} />)}
+        <button className="add-source" onClick={() => setConnectOpen(true)}><Plus size={15}/> Add a source</button>
+      </nav>
+      <div className="sidebar-bottom">
+        <button onClick={()=>setSettingsOpen(true)}><Settings size={17}/> Settings</button>
+        <button className="profile" onClick={()=>setSettingsOpen(true)}><div className="avatar">{data.user.name.split(' ').map(n=>n[0]).slice(0,2).join('')}</div><div><strong>{data.user.name}</strong><span>{data.mode === 'demo' ? 'Demo workspace' : data.user.email}</span></div><ChevronRight size={16}/></button>
+      </div>
+    </aside>
+
+    <main>
+      <header className="topbar">
+        <button className="menu-btn" aria-label="Open menu" onClick={() => setMobileNav(true)}><Menu size={22}/></button>
+        <label className="search"><Search size={17}/><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search your orbit" aria-label="Search your orbit"/><kbd>⌘ K</kbd></label>
+        <div className="top-actions">
+          <span className={`sync-state ${syncError?'failed':''}`} title={syncError||undefined} role="status"><i/>{syncer.running?syncer.label:syncError?'Sync failed':data.settings.autoSync?`Synced ${timeAgo(latestSync)}`:'Auto-sync paused'}</span>
+          <button className={`agent-chip${paused?' paused':''}`} onClick={togglePause} aria-pressed={paused} title={paused?'The agent is paused. Select to resume.':'Pause schedules, automations and write actions'}>{paused?<Play size={14} aria-hidden/>:<Pause size={14} aria-hidden/>}<span>{paused?'Paused':'Agent on'}</span></button>
+          <NotificationBell browserEnabled={!!agent?.settings.channels.browser} onNavigate={navigateLink}/>
+          <button className="sync-btn" onClick={syncer.start} disabled={syncer.running} aria-live="polite">{syncer.running?<><RefreshCw size={16} className="spin"/><span>{syncer.label}</span></>:<><RefreshCw size={16}/><span>Sync now</span></>}</button>
+          {syncer.running&&<button className="icon-btn" aria-label="Cancel sync" title="Cancel sync" onClick={syncer.cancel}><X size={16}/></button>}
+        </div>
+        {syncer.running&&<div className="sync-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={syncer.percent??undefined} aria-label="Sync progress"><i style={{width:`${syncer.percent??12}%`}} className={syncer.percent===null?'indeterminate':''}/></div>}
+      </header>
+
+      <div className="content">
+        {data.mode === 'demo' && <div className="demo-banner"><span><Sparkles size={15}/> You’re exploring a live demo with sample data.</span><button onClick={() => setConnectOpen(true)}>Connect your world <ChevronRight size={15}/></button></div>}
+        {paused&&view!=='approvals'&&<div className="notice warn pause-banner" role="status"><div><strong>The agent is paused</strong><span>Schedules, automations and write actions are stopped. Reading and your connections are unaffected.</span></div><button className="btn primary" onClick={togglePause}>Resume</button></div>}
+        {view==='focus'&&focus}
+        {view==='inbox'&&<InboxView signals={data.signals} query={query} canDraft={!!agent?.gmail.canDraft&&agent.settings.gmailAccess==='drafts'} focusId={focusId} onChanged={refreshAll} onNotice={notify} onOpenApprovals={()=>go('approvals')}/>}
+        {view==='waiting'&&<WaitingOn onChanged={refreshAll} onNotice={notify} onOpenApprovals={()=>go('approvals')}/>}
+        {view==='approvals'&&<ApprovalCenter agent={agent} onChanged={refreshAll} onNotice={notify} onOpenSignal={openSignal} onOpenSettings={()=>setSettingsOpen(true)}/>}
+        {view==='automations'&&<Automations timezone={agent?.settings.timezone||'UTC'} onChanged={refreshAll} onNotice={notify}/>}
+        {view==='memory'&&<Memory onNotice={notify}/>}
+        {view==='runs'&&<Runs onChanged={refreshAll} onNotice={notify}/>}
+        {view==='connections'&&<Connections agent={agent} onChanged={refreshAll} onNotice={notify} activity={activity} onOpenSettings={()=>setSettingsOpen(true)}/>}
       </div>
     </main>
-    {taskOpen && <TaskModal onClose={()=>setTaskOpen(false)} onSaved={async()=>{setTaskOpen(false);await load();setToast('Added to your focus queue')}}/>}
+    {taskOpen && <TaskModal onClose={()=>setTaskOpen(false)} onSaved={async()=>{setTaskOpen(false);await load();notify('Added to your focus queue')}}/>}
     {connectOpen && <ConnectModal connections={data.connections} onClose={()=>setConnectOpen(false)}/>} 
-    {settingsOpen&&<SettingsModal data={data} onClose={()=>setSettingsOpen(false)} onChanged={load}/>} 
-    {askOpen&&<AskModal onClose={()=>setAskOpen(false)}/>}
-    {toast && <div className="toast"><Check size={16}/>{toast}</div>}
+    {settingsOpen&&<SettingsModal data={data} agent={agent} onClose={()=>setSettingsOpen(false)} onChanged={refreshAll} onJob={notify}/>} 
+    {askOpen&&<AskPanel onClose={()=>setAskOpen(false)} onChanged={refreshAll} onNotice={notify} onOpenRun={()=>{setAskOpen(false);go('runs')}}/>}
+    {toast && <div className="toast" role="status"><Check size={16}/>{toast}</div>}
   </div>;
 }
 
-function NavItem({icon:Icon,label,count,active,dot,onClick}:{icon:typeof Mail;label:string;count?:number;active?:boolean;dot?:boolean;onClick:()=>void}) { return <button className={active?'nav-item active':'nav-item'} onClick={onClick}><Icon size={17}/><span>{label}</span>{count!==undefined&&<b>{count}</b>}{dot&&<i/>}</button> }
+function NavItem({icon:Icon,label,count,active,dot,alert,onClick}:{icon:typeof Mail;label:string;count?:number;active?:boolean;dot?:boolean;alert?:boolean;onClick:()=>void}) { return <button className={active?'nav-item active':'nav-item'} aria-current={active?'page':undefined} onClick={onClick}><Icon size={17}/><span>{label}</span>{count!==undefined&&<b className={alert?'alert':undefined}>{count}</b>}{dot&&<i/>}</button> }
 function EmptyState({text}:{text:string}){return <div className="empty-state">{text}</div>}
 function Metric({label,value,note,tone}:{label:string;value:number;note:string;tone:string}) { return <div className={`metric ${tone}`}><div><span>{label}</span><strong>{String(value).padStart(2,'0')}</strong></div><p>{note}</p></div> }
 function SignalRow({signal}:{signal:Signal}) { const Icon=categoryIcons[signal.category]||Mail; return <article className="signal-row"><div className={`signal-icon ${signal.category}`}><Icon size={17}/></div><div className="signal-main"><div className="signal-meta"><span className={`priority ${signal.priority}`}>{signal.priority}</span><span>{signal.source}</span><i/> <span>{timeAgo(signal.occurredAt)}</span></div><h4>{signal.title}</h4><p>{signal.summary}</p></div><ChevronRight size={17} className="row-chevron"/></article> }
@@ -127,7 +173,7 @@ function ActivityLog({items,onClear}:{items:Dashboard['activity'];onClear:()=>Pr
 
 function TaskModal({onClose,onSaved}:{onClose:()=>void;onSaved:()=>void}) { const [title,setTitle]=useState(''); const [priority,setPriority]=useState<Priority>('soon'); const save=async(e:React.FormEvent)=>{e.preventDefault();await fetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,priority,source:'manual'})});onSaved()}; return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><form className="modal" onSubmit={save}><div className="modal-head"><div><span>QUICK CAPTURE</span><h3>What needs to happen?</h3></div><button type="button" onClick={onClose}><X size={20}/></button></div><input autoFocus value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Book dentist appointment" required/><label>Priority</label><div className="priority-select">{(['now','soon','later'] as const).map(p=><button type="button" className={priority===p?'active':''} onClick={()=>setPriority(p)} key={p}>{p}</button>)}</div><button className="primary" type="submit">Add to focus queue <ChevronRight size={16}/></button></form></div> }
 function ConnectModal({connections,onClose}:{connections:Connection[];onClose:()=>void}) { const options:Connection[]=[{id:'gmail-new',provider:'gmail',label:'Gmail',status:'available'},...connections.filter(c=>c.provider!=='gmail')];return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="modal connect-modal"><div className="modal-head"><div><span>SOURCE LIBRARY</span><h3>Connect your world</h3></div><button onClick={onClose}><X size={20}/></button></div><p className="modal-intro">Orbit reads the signals you choose and turns them into one focused brief. Your credentials stay encrypted.</p><div className="connect-grid">{options.map(c=>{const Icon=sourceIcons[c.provider];return <div className="connect-card" key={c.id}><div className={`connect-logo ${c.provider}`}><Icon size={22}/></div><div><strong>{c.label}</strong><span>{c.provider==='gmail'?'Mail, receipts & follow-ups':c.provider==='calendar'?'Events, conflicts & prep':c.provider==='github'?'Reviews, issues & releases':c.provider==='slack'?'Mentions & decisions':'Mail & calendar'}</span></div>{c.provider==='gmail'?<a href="/auth/google">Connect</a>:<button disabled>{c.status==='available'?'Soon':'Waitlist'}</button>}</div>})}</div></div></div> }
-function SettingsModal({data,onClose,onChanged}:{data:Dashboard;onClose:()=>void;onChanged:()=>Promise<void>}){
+function SettingsModal({data,agent,onClose,onChanged,onJob}:{data:Dashboard;agent:AgentState|null;onClose:()=>void;onChanged:()=>Promise<void>;onJob:(message:string)=>void}){
   const [confirmation,setConfirmation]=useState('');
   const [aiProvider,setAiProvider]=useState<AiProvider>(data.settings.aiProvider);
   const [aiInputChars,setAiInputChars]=useState(data.settings.aiInputChars);
@@ -165,10 +211,11 @@ function SettingsModal({data,onClose,onChanged}:{data:Dashboard;onClose:()=>void
   const importChatGPT=async(file?:File)=>{if(!file)return;setChatgptBusy(true);setChatgptMessage('Validating with OpenAI…');try{const credentials=JSON.parse(await file.text());const response=await fetch('/api/chatgpt/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(credentials)});const result=await response.json();if(!response.ok)throw new Error(result.error||'Could not import credentials');setChatgptMessage(`Connected ${result.email||'ChatGPT'}. You can delete the local credential file.`);await onChanged();setAiProvider('chatgpt-subscription')}catch(error){setChatgptMessage(error instanceof Error?error.message:'Could not import credentials')}finally{setChatgptBusy(false)}};
   const disconnectChatGPT=async()=>{setChatgptBusy(true);await fetch('/api/chatgpt',{method:'DELETE'});setAiProvider('rules');setChatgptModel('');setModels([]);setChatgptMessage('ChatGPT disconnected and its stored tokens removed.');setChatgptBusy(false);await onChanged()};
   const saveSync=async()=>{setSavingSync(true);setSyncMessage('');const split=(value:string)=>value.split(/[\n,]+/).map(item=>item.trim()).filter(Boolean);const response=await fetch('/api/settings',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({autoSync,syncIntervalMinutes,syncLookbackDays,initialSyncLookbackDays,syncMaxMessages,initialSyncMaxMessages,excludePromotions,excludeSocial,excludeForums,blockedSenders:split(blockedSenders),blockedKeywords:split(blockedKeywords)})});const result=await response.json().catch(()=>({}));setSavingSync(false);if(response.ok){setSyncMessage('Sync and filtering settings saved.');await onChanged()}else setSyncMessage(result.error||'Could not save sync settings')};
-  const reprocess=async()=>{if(reprocessConfirmation!=='REPROCESS')return;setReprocessing(true);setSyncMessage('Clearing AI-derived data and rebuilding from Gmail…');const response=await fetch('/api/data/reprocess',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmation:reprocessConfirmation})});const result=await response.json().catch(()=>({}));setReprocessing(false);if(response.ok){setSyncMessage(`Rebuilt successfully from ${result.synced?.processed||0} messages. Manual tasks and connections were preserved.`);setReprocessConfirmation('');await onChanged()}else{setSyncMessage(result.error||'Reprocess failed');await onChanged()}};
+  const reprocess=async()=>{if(reprocessConfirmation!=='REPROCESS')return;setReprocessing(true);setSyncMessage('Clearing AI-derived data and rebuilding from Gmail…');try{const {jobId}=await api.post<{jobId:string}>('/api/data/reprocess',{confirmation:reprocessConfirmation});for(;;){const job=await api.get<JobInfo>(`/api/jobs/${jobId}`);setSyncMessage(job.progress?.message?`${job.progress.message}${job.progress.total?` (${job.progress.done??0}/${job.progress.total})`:''}`:'Rebuilding…');if(['succeeded','failed','canceled'].includes(job.status)){if(job.status==='succeeded'){setSyncMessage(`Rebuilt successfully from ${job.result?.processed||0} messages. Manual tasks, approved suggestions and connections were preserved.`);setReprocessConfirmation('')}else setSyncMessage(`${job.error?.message||'Rebuild stopped.'} ${job.error?.action||''}`.trim());break}await new Promise(resolve=>setTimeout(resolve,1000))}}catch(error){setSyncMessage(error instanceof Error?error.message:'Reprocess failed')}finally{setReprocessing(false);await onChanged()}};
   const savePassword=async(event:React.FormEvent)=>{event.preventDefault();setPasswordMessage('');if(newPassword!==confirmPassword)return setPasswordMessage('The new passwords do not match.');setSavingPassword(true);const response=await fetch('/api/auth/password',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPassword,password:newPassword})});const result=await response.json().catch(()=>({}));setSavingPassword(false);if(!response.ok)return setPasswordMessage(result.error||'Could not save dashboard password');setCurrentPassword('');setNewPassword('');setConfirmPassword('');setPasswordMessage(data.system.passwordLoginConfigured?'Dashboard password changed.':'Password login enabled for new browsers.');await onChanged()};
   const logout=async()=>{await fetch('/auth/logout',{method:'POST'});location.href='/'};
-  return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="modal settings-modal"><div className="modal-head"><div><span>OWNER CONTROLS</span><h3>Privacy & data</h3></div><button onClick={onClose}><X size={20}/></button></div>
+  return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className="modal settings-modal"><div className="modal-head"><div><span>OWNER CONTROLS</span><h3>Privacy & data</h3></div><button onClick={onClose} aria-label="Close"><X size={20}/></button></div>
+    {agent&&<AgentControls agent={agent} onChanged={()=>void onChanged()}/>}
     <div className="settings-section"><h4>Intelligence engine</h4><p>Choose how Orbit classifies new messages and answers questions. Environment API keys and encrypted ChatGPT credentials stay server-side and are never returned to this browser.</p><div className="provider-grid">{data.system.aiProviders.map(provider=><button key={provider.id} disabled={!provider.configured} className={aiProvider===provider.id?'selected':''} onClick={()=>provider.configured&&setAiProvider(provider.id)}><strong>{provider.label}</strong><span>{provider.configured?(provider.external?'External processing':'Stays on this installation'):provider.id==='chatgpt-subscription'?'Connect below':'Add credentials in Railway'}</span></button>)}</div>{aiProvider==='chatgpt-subscription'&&models.length>0&&<label className="model-select"><span>ChatGPT model</span><select value={chatgptModel} onChange={event=>setChatgptModel(event.target.value)}>{models.map(model=><option key={model.slug} value={model.slug}>{model.name}</option>)}</select></label>}<label className="range-label"><span>Maximum message excerpt sent for AI processing</span><strong>{aiInputChars.toLocaleString()} characters</strong><input type="range" min="200" max="8000" step="200" value={aiInputChars} onChange={event=>setAiInputChars(Number(event.target.value))}/></label><button className="settings-action button" onClick={saveAi} disabled={savingAi}>{savingAi?'Saving…':'Save AI settings'}</button>{chatgptMessage&&<p className="settings-message">{chatgptMessage}</p>}</div>
     <div className="settings-section chatgpt-setup"><h4>Use your ChatGPT plan <span>PREVIEW</span></h4>{data.system.chatgpt.connected?<><p>Connected as <strong>{data.system.chatgpt.email||'ChatGPT user'}</strong>. Orbit sends only the bounded content needed for the feature you invoke. It cannot read your ChatGPT chats or memory.</p><button className="settings-action danger-button" disabled={chatgptBusy} onClick={disconnectChatGPT}>Disconnect & revoke ChatGPT</button></>:<><p>Sign in through OpenAI on your own computer, then import the generated credential file here. Orbit never receives your password or ChatGPT cookies.</p>{!hostId?<button className="settings-action button" disabled={chatgptBusy} onClick={prepareChatGPT}>{chatgptBusy?'Preparing…':'Prepare ChatGPT connection'}</button>:<div className="chatgpt-steps"><div><b>1</b><span>In a local clone of Orbit, run:</span></div><div className="command-row"><code>npm run chatgpt:connect -- --host-id {hostId}</code><button onClick={()=>navigator.clipboard.writeText(`npm run chatgpt:connect -- --host-id ${hostId}`)}>Copy</button></div><div><b>2</b><span>Approve OpenAI sign-in, then import the generated JSON file.</span></div><label className="file-button">{chatgptBusy?'Validating…':'Import credential file'}<input type="file" accept="application/json,.json" disabled={chatgptBusy} onChange={event=>importChatGPT(event.target.files?.[0])}/></label></div>}</>}</div>
     <div className="settings-section sync-controls"><h4>Sync schedule & inbox rules</h4><p>Manual Sync now always works. Auto-sync runs only when enabled and the selected interval has elapsed.</p><label className="toggle-row"><span><strong>Automatic sync</strong><small>Run while Orbit is deployed, even when the dashboard is closed.</small></span><input type="checkbox" checked={autoSync} onChange={event=>setAutoSync(event.target.checked)}/></label><div className="settings-fields"><label><span>Sync interval</span><select value={syncIntervalMinutes} onChange={event=>setSyncIntervalMinutes(Number(event.target.value))}>{[30,60,120,360,720,1440].map(minutes=><option value={minutes} key={minutes}>{minutes<60?`${minutes} minutes`:minutes===60?'1 hour':minutes<1440?`${minutes/60} hours`:'24 hours'}</option>)}</select></label><label><span>Normal sync history</span><select value={syncLookbackDays} onChange={event=>setSyncLookbackDays(Number(event.target.value))}>{[1,3,7,14,30,60,90].map(days=><option value={days} key={days}>{days} days</option>)}</select></label><label><span>Messages per normal sync</span><input type="number" min="1" max="100" value={syncMaxMessages} onChange={event=>setSyncMaxMessages(Number(event.target.value))}/></label><label><span>First sync history</span><select value={initialSyncLookbackDays} onChange={event=>setInitialSyncLookbackDays(Number(event.target.value))}>{[7,14,30,60,90,180,365].map(days=><option value={days} key={days}>{days} days</option>)}</select></label><label><span>Messages on first sync</span><input type="number" min="1" max="100" value={initialSyncMaxMessages} onChange={event=>setInitialSyncMaxMessages(Number(event.target.value))}/></label></div><div className="filter-checks"><label><input type="checkbox" checked={excludePromotions} onChange={event=>setExcludePromotions(event.target.checked)}/> Skip Promotions</label><label><input type="checkbox" checked={excludeSocial} onChange={event=>setExcludeSocial(event.target.checked)}/> Skip Social</label><label><input type="checkbox" checked={excludeForums} onChange={event=>setExcludeForums(event.target.checked)}/> Skip Forums</label></div><div className="settings-fields text-rules"><label><span>Ignore senders</span><textarea value={blockedSenders} onChange={event=>setBlockedSenders(event.target.value)} placeholder={'newsletter@example.com\nmarketing@vendor.com'}/><small>One email or domain fragment per line.</small></label><label><span>Ignore keywords</span><textarea value={blockedKeywords} onChange={event=>setBlockedKeywords(event.target.value)} placeholder={'unsubscribe\nweekly digest'}/><small>Matched against subject and message text.</small></label></div><button className="settings-action button" disabled={savingSync} onClick={saveSync}>{savingSync?'Saving…':'Save sync rules'}</button>{syncMessage&&<p className="settings-message">{syncMessage}</p>}</div>
@@ -181,11 +228,6 @@ function SettingsModal({data,onClose,onChanged}:{data:Dashboard;onClose:()=>void
     <div className="settings-section danger"><h4>Delete this account</h4><p>Revokes connected provider tokens when possible and permanently removes the owner, signals, tasks, connections, and brief from this database.</p><div><input value={confirmation} onChange={e=>setConfirmation(e.target.value)} placeholder="Type DELETE"/><button disabled={confirmation!=='DELETE'} onClick={erase}>Delete everything</button></div></div>
     <div className="legal-links"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/security">Security</a></div>
   </div></div>;
-}
-function AskModal({onClose}:{onClose:()=>void}){
-  const [question,setQuestion]=useState('');const [answer,setAnswer]=useState('');const [asking,setAsking]=useState(false);const [error,setError]=useState('');
-  const ask=async(event:React.FormEvent)=>{event.preventDefault();setAsking(true);setError('');setAnswer('');try{const response=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question})});const result=await response.json();if(!response.ok)throw new Error(result.error||'Could not answer');setAnswer(result.answer);}catch(e){setError(e instanceof Error?e.message:'Could not answer');}finally{setAsking(false)}};
-  return <div className="modal-backdrop" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><form className="modal ask-modal" onSubmit={ask}><div className="modal-head"><div><span>ASK YOUR ORBIT</span><h3>Question your stored signals</h3></div><button type="button" onClick={onClose}><X size={20}/></button></div><p className="modal-intro">Answers use normalized signals and tasks already in Orbit—not a new mailbox fetch.</p><input autoFocus value={question} onChange={event=>setQuestion(event.target.value)} maxLength={600} placeholder="What needs my attention before Friday?" required/>{answer&&<div className="ask-answer"><Sparkles size={17}/><p>{answer}</p></div>}{error&&<div className="ask-error">{error}</div>}<button className="primary" disabled={asking}>{asking?'Thinking…':'Ask Orbit'} <ChevronRight size={16}/></button></form></div>
 }
 function Welcome({onDemo}:{onDemo:()=>void}) {
   const [config,setConfig]=useState<{ownerConfigured:boolean;passwordLoginConfigured:boolean;gmailConfigured:boolean;databaseConfigured:boolean;demoMode:boolean;ai:{provider:string};privacy:{signalRetentionDays:number}}|null>(null);
@@ -203,8 +245,8 @@ function Welcome({onDemo}:{onDemo:()=>void}) {
 function LegalPage({type}:{type:'privacy'|'terms'|'security'}){
   const content={
     privacy:{title:'Privacy policy',updated:'Effective October 15, 2026',intro:'Orbit is self-hosted software. The person who deploys an Orbit instance controls that instance and its data. The Orbit open-source project does not operate a central user database or receive data from independent installations.',sections:[
-      ['Information the instance accesses','When its owner connects Google, Orbit requests read-only Gmail access plus basic Google identity information. It reads recent messages to identify actions, deadlines, changes, and low-signal mail. Orbit does not send, edit, or delete email.'],
-      ['Information the instance stores','Orbit stores the owner profile, encrypted OAuth credentials, short normalized signals, tasks, connection status, the latest brief, a capped operational activity log, and—when enabled—a salted scrypt hash of the dashboard password in the instance’s PostgreSQL database. Plaintext passwords, raw email bodies, questions, AI answers, and secrets are not logged. Raw email bodies are processed transiently and are not stored.'],
+      ['Information the instance accesses','When its owner connects Google, Orbit requests read-only Gmail access plus basic Google identity information. It reads recent messages to identify actions, deadlines, changes, and low-signal mail. Orbit never sends email. If the owner enables draft access, Orbit can place drafts in Gmail after the owner approves each one; it cannot send, edit existing mail, or delete mail.'],
+      ['Information the instance stores','Orbit stores the owner profile, encrypted OAuth credentials, short normalized signals, tasks, connection status, the latest brief, a capped operational activity log, and—when enabled—a salted scrypt hash of the dashboard password in the instance’s PostgreSQL database. Plaintext passwords, raw email bodies, questions, AI answers, and secrets are not logged. Raw email bodies are processed transiently and are not stored; commitments keep a short (≤200 character) evidence excerpt.'],
       ['AI processing','Rules-only mode sends no message content to an AI provider. If the owner explicitly configures OpenAI, Anthropic, or a compatible provider, bounded message excerpts are sent to that provider to produce the requested classification or brief. The selected provider’s terms and privacy policy apply.'],
       ['Sharing and selling','Orbit does not contain advertising, analytics, data brokerage, or a central telemetry service. The project does not sell personal information. A self-host operator is responsible for any additional services or modifications they enable.'],
       ['Retention and deletion','Normalized signals expire according to SIGNAL_RETENTION_DAYS, which defaults to 30 days. Owners can export their Orbit data, disconnect providers, revoke credentials, or permanently delete their account and associated database records. Infrastructure backups remain subject to the operator’s Railway or hosting configuration.'],

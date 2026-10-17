@@ -1,9 +1,11 @@
 import crypto from 'node:crypto';
-import pg from 'pg';
+import { pool } from './pool.js';
+import { runMigrations } from './migrations.js';
+import { purgeMemoryUser } from './collection.js';
+import { purgeMemoryJobs } from './jobs.js';
 import { demoBrief, demoConnections, demoSignals, demoTasks, demoUser } from './demo.js';
 import type { ActivityEvent, AiProvider, Brief, Connection, Signal, Task, User, UserSettings } from './types.js';
 
-const pool = process.env.DATABASE_URL ? new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined }) : null;
 const memory = {
   users: new Map<string, User>([[demoUser.id, demoUser]]),
   connections: [...demoConnections], signals: [...demoSignals], tasks: [...demoTasks], briefs: new Map<string, Brief>([[demoUser.id, demoBrief]]), settings: new Map<string, UserSettings>(), chatgpt: new Map<string, ChatGPTConnection>(), passwords: new Map<string,PasswordAuth>(), activity:[] as ActivityEvent[]
@@ -14,32 +16,7 @@ export type PasswordAuth = { userId:string; salt:string; hash:string; updatedAt?
 
 export async function initStore() {
   if (!pool) return;
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, name TEXT NOT NULL, avatar TEXT, created_at TIMESTAMPTZ DEFAULT NOW());
-    CREATE TABLE IF NOT EXISTS connections (id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id) ON DELETE CASCADE, provider TEXT NOT NULL, label TEXT NOT NULL, account_email TEXT, status TEXT NOT NULL, last_synced_at TIMESTAMPTZ, last_sync_attempt_at TIMESTAMPTZ, last_sync_error TEXT, encrypted_tokens TEXT, UNIQUE(user_id, provider, account_email));
-    ALTER TABLE connections ADD COLUMN IF NOT EXISTS last_sync_error TEXT;
-    ALTER TABLE connections ADD COLUMN IF NOT EXISTS last_sync_attempt_at TIMESTAMPTZ;
-    CREATE TABLE IF NOT EXISTS signals (id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id) ON DELETE CASCADE, source TEXT NOT NULL, source_id TEXT NOT NULL, sender TEXT, title TEXT NOT NULL, summary TEXT, occurred_at TIMESTAMPTZ, category TEXT, priority TEXT, read BOOLEAN DEFAULT FALSE, metadata JSONB DEFAULT '{}', UNIQUE(user_id, source, source_id));
-    CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id) ON DELETE CASCADE, title TEXT NOT NULL, note TEXT, due_at TIMESTAMPTZ, priority TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', source TEXT NOT NULL, source_signal_id TEXT, created_at TIMESTAMPTZ DEFAULT NOW());
-    CREATE TABLE IF NOT EXISTS briefs (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, data JSONB NOT NULL, generated_at TIMESTAMPTZ DEFAULT NOW());
-    CREATE TABLE IF NOT EXISTS user_settings (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, ai_provider TEXT NOT NULL DEFAULT 'rules', ai_input_chars INTEGER NOT NULL DEFAULT 1800, chatgpt_model TEXT, auto_sync BOOLEAN NOT NULL DEFAULT TRUE, sync_interval_minutes INTEGER NOT NULL DEFAULT 30, sync_lookback_days INTEGER NOT NULL DEFAULT 7, initial_sync_lookback_days INTEGER NOT NULL DEFAULT 30, sync_max_messages INTEGER NOT NULL DEFAULT 35, initial_sync_max_messages INTEGER NOT NULL DEFAULT 100, exclude_promotions BOOLEAN NOT NULL DEFAULT TRUE, exclude_social BOOLEAN NOT NULL DEFAULT TRUE, exclude_forums BOOLEAN NOT NULL DEFAULT FALSE, blocked_senders JSONB NOT NULL DEFAULT '[]', blocked_keywords JSONB NOT NULL DEFAULT '[]', updated_at TIMESTAMPTZ DEFAULT NOW());
-    ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS chatgpt_model TEXT;
-    ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS auto_sync BOOLEAN NOT NULL DEFAULT TRUE;
-    ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS sync_interval_minutes INTEGER NOT NULL DEFAULT 30;
-    ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS sync_lookback_days INTEGER NOT NULL DEFAULT 7;
-    ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS initial_sync_lookback_days INTEGER NOT NULL DEFAULT 30;
-    ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS sync_max_messages INTEGER NOT NULL DEFAULT 35;
-    ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS initial_sync_max_messages INTEGER NOT NULL DEFAULT 100;
-    ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS exclude_promotions BOOLEAN NOT NULL DEFAULT TRUE;
-    ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS exclude_social BOOLEAN NOT NULL DEFAULT TRUE;
-    ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS exclude_forums BOOLEAN NOT NULL DEFAULT FALSE;
-    ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS blocked_senders JSONB NOT NULL DEFAULT '[]';
-    ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS blocked_keywords JSONB NOT NULL DEFAULT '[]';
-    CREATE TABLE IF NOT EXISTS chatgpt_connections (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, client_id TEXT, host_id TEXT NOT NULL, email TEXT, subject TEXT, encrypted_credentials TEXT, updated_at TIMESTAMPTZ DEFAULT NOW());
-    CREATE TABLE IF NOT EXISTS owner_auth (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, password_salt TEXT NOT NULL, password_hash TEXT NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW());
-    CREATE TABLE IF NOT EXISTS activity_events (id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id) ON DELETE CASCADE, type TEXT NOT NULL, status TEXT NOT NULL, title TEXT NOT NULL, detail TEXT, action TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
-    CREATE INDEX IF NOT EXISTS activity_events_user_created_idx ON activity_events(user_id,created_at DESC);
-  `);
+  await runMigrations(pool);
   if (process.env.DEMO_MODE !== 'false') {
     await pool.query('INSERT INTO users(id,email,name,avatar,created_at) VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO NOTHING', [demoUser.id,demoUser.email,demoUser.name,demoUser.avatar || null,demoUser.createdAt]);
     for (const c of demoConnections) await pool.query('INSERT INTO connections(id,user_id,provider,label,account_email,status,last_synced_at) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(id) DO NOTHING', [c.id,c.userId,c.provider,c.label,c.accountEmail || null,c.status,c.lastSyncedAt || null]);
@@ -54,8 +31,8 @@ export async function initStore() {
 const rowsTo = {
   user: (r: any): User => ({ id: r.id, email: r.email, name: r.name, avatar: r.avatar, createdAt: r.created_at }),
   connection: (r: any): Connection => ({ id: r.id, userId: r.user_id, provider: r.provider, label: r.label, accountEmail: r.account_email, status: r.status, lastSyncedAt: r.last_synced_at?.toISOString?.() || r.last_synced_at || undefined, lastSyncAttemptAt:r.last_sync_attempt_at?.toISOString?.()||r.last_sync_attempt_at||undefined, lastSyncError:r.last_sync_error||undefined, encryptedTokens: r.encrypted_tokens }),
-  signal: (r: any): Signal => ({ id: r.id, userId: r.user_id, source: r.source, sourceId: r.source_id, sender: r.sender, title: r.title, summary: r.summary, occurredAt: r.occurred_at, category: r.category, priority: r.priority, read: r.read, metadata: r.metadata }),
-  task: (r: any): Task => ({ id: r.id, userId: r.user_id, title: r.title, note: r.note, dueAt: r.due_at, priority: r.priority, status: r.status, source: r.source, sourceSignalId: r.source_signal_id, createdAt: r.created_at })
+  signal: (r: any): Signal => ({ id: r.id, userId: r.user_id, source: r.source, sourceId: r.source_id, sender: r.sender, title: r.title, summary: r.summary, occurredAt: r.occurred_at?.toISOString?.() ?? r.occurred_at, category: r.category, priority: r.priority, read: r.read, metadata: r.metadata }),
+  task: (r: any): Task => ({ id: r.id, userId: r.user_id, title: r.title, note: r.note ?? undefined, dueAt: r.due_at?.toISOString?.() ?? r.due_at ?? undefined, priority: r.priority, status: r.status, source: r.source, sourceSignalId: r.source_signal_id ?? undefined, createdAt: r.created_at?.toISOString?.() ?? r.created_at })
 };
 
 export async function getUser(id: string) {
@@ -111,6 +88,46 @@ export async function updateTask(userId: string, id: string, status: Task['statu
   if (!pool) { const task = memory.tasks.find(x => x.id === id && x.userId === userId); if (task) task.status = status; return task || null; }
   const { rows } = await pool.query('UPDATE tasks SET status=$1 WHERE id=$2 AND user_id=$3 RETURNING *', [status,id,userId]); return rows[0] ? rowsTo.task(rows[0]) : null;
 }
+export type TaskPatch = Partial<Pick<Task, 'title' | 'note' | 'dueAt' | 'priority' | 'status'>>;
+export async function getTask(userId: string, id: string): Promise<Task | null> {
+  if (!pool) { const task = memory.tasks.find(x => x.id === id && x.userId === userId); return task ? { ...task } : null; }
+  const { rows } = await pool.query('SELECT * FROM tasks WHERE id=$1 AND user_id=$2', [id, userId]); return rows[0] ? rowsTo.task(rows[0]) : null;
+}
+export async function patchTask(userId: string, id: string, patch: TaskPatch): Promise<Task | null> {
+  const current = await getTask(userId, id); if (!current) return null;
+  const next: Task = { ...current, ...Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)) };
+  if (!pool) { const index = memory.tasks.findIndex(x => x.id === id && x.userId === userId); memory.tasks[index] = next; return { ...next }; }
+  const { rows } = await pool.query('UPDATE tasks SET title=$3,note=$4,due_at=$5,priority=$6,status=$7 WHERE id=$1 AND user_id=$2 RETURNING *', [id, userId, next.title, next.note ?? null, next.dueAt ?? null, next.priority, next.status]);
+  return rows[0] ? rowsTo.task(rows[0]) : null;
+}
+export async function deleteTask(userId: string, id: string): Promise<boolean> {
+  if (!pool) { const index = memory.tasks.findIndex(x => x.id === id && x.userId === userId); if (index < 0) return false; memory.tasks.splice(index, 1); return true; }
+  const result = await pool.query('DELETE FROM tasks WHERE id=$1 AND user_id=$2', [id, userId]); return (result.rowCount ?? 0) > 0;
+}
+export async function getSignal(userId: string, id: string): Promise<Signal | null> {
+  if (!pool) { const signal = memory.signals.find(x => x.id === id && x.userId === userId); return signal ? { ...signal } : null; }
+  const { rows } = await pool.query('SELECT * FROM signals WHERE id=$1 AND user_id=$2', [id, userId]); return rows[0] ? rowsTo.signal(rows[0]) : null;
+}
+export type SignalPatch = { category?: Signal['category']; priority?: Signal['priority']; read?: boolean; metadata?: Record<string, unknown> };
+/** Updates category/priority/read and shallow-merges `metadata` into the stored metadata. */
+export async function patchSignal(userId: string, id: string, patch: SignalPatch): Promise<Signal | null> {
+  const current = await getSignal(userId, id); if (!current) return null;
+  const next: Signal = { ...current, category: patch.category ?? current.category, priority: patch.priority ?? current.priority, read: patch.read ?? current.read, metadata: { ...(current.metadata || {}), ...(patch.metadata || {}) } };
+  if (!pool) { const index = memory.signals.findIndex(x => x.id === id && x.userId === userId); memory.signals[index] = next; return { ...next }; }
+  const { rows } = await pool.query('UPDATE signals SET category=$3,priority=$4,read=$5,metadata=$6 WHERE id=$1 AND user_id=$2 RETURNING *', [id, userId, next.category, next.priority, next.read, JSON.stringify(next.metadata)]);
+  return rows[0] ? rowsTo.signal(rows[0]) : null;
+}
+/** Snoozed signals whose wake-up time has passed (all owners). */
+export async function getSnoozedSignalsDue(now: Date): Promise<Signal[]> {
+  if (!pool) return memory.signals.filter(signal => { const state = (signal.metadata?.state ?? {}) as { status?: string; snoozedUntil?: string }; return state.status === 'snoozed' && !!state.snoozedUntil && state.snoozedUntil <= now.toISOString(); }).map(signal => ({ ...signal }));
+  const { rows } = await pool.query("SELECT * FROM signals WHERE metadata->'state'->>'status'='snoozed' AND (metadata->'state'->>'snoozedUntil')::timestamptz <= $1", [now.toISOString()]);
+  return rows.map(rowsTo.signal);
+}
+export async function deleteSignalsBySourceIds(userId: string, source: Signal['source'], sourceIds: string[]): Promise<number> {
+  if (!sourceIds.length) return 0;
+  if (!pool) { const before = memory.signals.length; memory.signals = memory.signals.filter(signal => !(signal.userId === userId && signal.source === source && sourceIds.includes(signal.sourceId))); return before - memory.signals.length; }
+  const result = await pool.query('DELETE FROM signals WHERE user_id=$1 AND source=$2 AND source_id = ANY($3::text[])', [userId, source, sourceIds]); return result.rowCount ?? 0;
+}
 export async function getBrief(userId: string) {
   if (!pool) return memory.briefs.get(userId) || null;
   const { rows } = await pool.query('SELECT data FROM briefs WHERE user_id=$1', [userId]); return (rows[0]?.data as Brief) || null;
@@ -135,8 +152,8 @@ export async function saveSettings(userId: string, settings: UserSettings) {
 }
 
 export async function clearDerivedData(userId:string){
-  if(!pool){const signals=memory.signals.filter(item=>item.userId===userId).length;const tasks=memory.tasks.filter(item=>item.userId===userId&&!!item.sourceSignalId).length;memory.signals=memory.signals.filter(item=>item.userId!==userId);memory.tasks=memory.tasks.filter(item=>item.userId!==userId||!item.sourceSignalId);memory.briefs.delete(userId);memory.connections.forEach(connection=>{if(connection.userId===userId){connection.lastSyncedAt=undefined;connection.lastSyncAttemptAt=undefined;connection.lastSyncError=undefined;if(connection.encryptedTokens)connection.status='connected';}});return{signals,tasks};}
-  const client=await pool.connect();try{await client.query('BEGIN');const tasks=await client.query('DELETE FROM tasks WHERE user_id=$1 AND source_signal_id IS NOT NULL',[userId]);const signals=await client.query('DELETE FROM signals WHERE user_id=$1',[userId]);await client.query('DELETE FROM briefs WHERE user_id=$1',[userId]);await client.query("UPDATE connections SET last_synced_at=NULL,last_sync_attempt_at=NULL,last_sync_error=NULL,status=CASE WHEN encrypted_tokens IS NOT NULL THEN 'connected' ELSE status END WHERE user_id=$1",[userId]);await client.query('COMMIT');return{signals:signals.rowCount||0,tasks:tasks.rowCount||0};}catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
+  if(!pool){const signals=memory.signals.filter(item=>item.userId===userId).length;const derived=(item:Task)=>!!item.sourceSignalId&&item.source!=='manual';const tasks=memory.tasks.filter(item=>item.userId===userId&&derived(item)).length;memory.signals=memory.signals.filter(item=>item.userId!==userId);memory.tasks=memory.tasks.filter(item=>item.userId!==userId||!derived(item));memory.briefs.delete(userId);memory.connections.forEach(connection=>{if(connection.userId===userId){connection.lastSyncedAt=undefined;connection.lastSyncAttemptAt=undefined;connection.lastSyncError=undefined;if(connection.encryptedTokens)connection.status='connected';}});return{signals,tasks};}
+  const client=await pool.connect();try{await client.query('BEGIN');const tasks=await client.query("DELETE FROM tasks WHERE user_id=$1 AND source_signal_id IS NOT NULL AND source <> 'manual'",[userId]);const signals=await client.query('DELETE FROM signals WHERE user_id=$1',[userId]);await client.query('DELETE FROM briefs WHERE user_id=$1',[userId]);await client.query("UPDATE connections SET last_synced_at=NULL,last_sync_attempt_at=NULL,last_sync_error=NULL,status=CASE WHEN encrypted_tokens IS NOT NULL THEN 'connected' ELSE status END WHERE user_id=$1",[userId]);await client.query('COMMIT');return{signals:signals.rowCount||0,tasks:tasks.rowCount||0};}catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
 }
 export async function ensureChatGPTHost(userId:string){
   const current=await getChatGPTConnection(userId);if(current)return current;
@@ -167,7 +184,7 @@ export async function deleteConnection(userId:string,id:string){
   const {rows}=await pool.query('DELETE FROM connections WHERE id=$1 AND user_id=$2 RETURNING *',[id,userId]);return rows[0]?rowsTo.connection(rows[0]):null;
 }
 export async function deleteUser(userId:string){
-  if(!pool){memory.users.delete(userId);memory.connections=memory.connections.filter(x=>x.userId!==userId);memory.signals=memory.signals.filter(x=>x.userId!==userId);memory.tasks=memory.tasks.filter(x=>x.userId!==userId);memory.briefs.delete(userId);memory.settings.delete(userId);memory.chatgpt.delete(userId);memory.passwords.delete(userId);memory.activity=memory.activity.filter(x=>x.userId!==userId);return;}
+  if(!pool){memory.users.delete(userId);memory.connections=memory.connections.filter(x=>x.userId!==userId);memory.signals=memory.signals.filter(x=>x.userId!==userId);memory.tasks=memory.tasks.filter(x=>x.userId!==userId);memory.briefs.delete(userId);memory.settings.delete(userId);memory.chatgpt.delete(userId);memory.passwords.delete(userId);memory.activity=memory.activity.filter(x=>x.userId!==userId);purgeMemoryUser(userId);purgeMemoryJobs(userId);return;}
   await pool.query('DELETE FROM users WHERE id=$1',[userId]);
 }
 export { pool };

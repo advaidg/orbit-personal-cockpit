@@ -11,6 +11,12 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env: { POSTGRES_USER: orbit, POSTGRES_PASSWORD: orbit, POSTGRES_DB: orbit_test }
+        ports: ['54329:5432']
+        options: --health-cmd="pg_isready -U orbit" --health-interval=5s --health-retries=10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,4 +25,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      - run: npm test
+      - run: npm run test:pg
       - run: npm run build

@@ -3,10 +3,10 @@ import OpenAI from 'openai';
 import type { AiProvider, Brief, Signal, Task, UserSettings } from './types.js';
 import { chatGPTCredentials, chatGPTModels } from './chatgpt.js';
 
-type JsonSchema = Record<string, unknown>;
+export type JsonSchema = Record<string, unknown>;
 type TriageItem = { sourceId:string; title:string; sender:string; summary:string; category:Signal['category']; priority:Signal['priority']; task:string|null };
 
-function selectedProvider(preferred?: AiProvider): AiProvider {
+export function selectedProvider(preferred?: AiProvider): AiProvider {
   if (process.env.AI_ENABLED === 'false') return 'rules';
   if (preferred) return preferred;
   if (process.env.AI_PROVIDER) return process.env.AI_PROVIDER as AiProvider;
@@ -45,7 +45,13 @@ function parseJson(text: string) {
   return JSON.parse(clean);
 }
 
-async function generateJson(prompt: string, schemaName: string, schema: JsonSchema, provider: AiProvider, userId?:string, model?:string) {
+type JsonGenerator=(prompt:string,schemaName:string,schema:JsonSchema,provider:AiProvider)=>Promise<unknown>;
+let jsonGeneratorOverride:JsonGenerator|null=null;
+/** Test seam: lets tests supply model output (including malicious output) without calling a provider. */
+export function setJsonGeneratorForTests(generator:JsonGenerator|null){jsonGeneratorOverride=generator;}
+
+export async function generateJson(prompt: string, schemaName: string, schema: JsonSchema, provider: AiProvider, userId?:string, model?:string) {
+  if(jsonGeneratorOverride)return jsonGeneratorOverride(prompt,schemaName,schema,provider) as Promise<any>;
   if(provider==='chatgpt-subscription'){
     if(!userId)throw new Error('ChatGPT plan usage needs an authenticated Orbit owner');
     return generateChatGPTJson(prompt,schema,userId,model);
@@ -112,3 +118,6 @@ export async function answerQuestion(question:string, signals:Signal[], tasks:Ta
 }
 
 export function aiStatus(){const provider=selectedProvider();const selected=aiProviders().find(item=>item.id===provider);return{provider,external:selected?.external||false,configured:selected?.configured||false};}
+
+/** Whether a provider sends content outside this installation. */
+export function providerIsExternal(provider:AiProvider){return aiProviders().find(item=>item.id===provider)?.external??false;}

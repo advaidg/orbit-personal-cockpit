@@ -62,7 +62,7 @@ export interface Brief {
 export interface ActivityEvent {
   id: string;
   userId: string;
-  type: 'sync' | 'ai' | 'connection' | 'settings' | 'data';
+  type: 'sync' | 'ai' | 'connection' | 'settings' | 'data' | 'agent';
   status: 'info' | 'success' | 'error';
   title: string;
   detail?: string;
@@ -98,5 +98,6 @@ export interface DashboardData {
   settings: UserSettings;
   activity: ActivityEvent[];
   system: { storage: 'postgres' | 'memory'; persistent: boolean; passwordLoginConfigured:boolean; passwordRecoveryAvailable:boolean; aiProviders: Array<{ id: AiProvider; label: string; configured: boolean; external: boolean }>; chatgpt:{connected:boolean;email?:string;hostId?:string} };
+  agent: { enabled: boolean; paused: boolean; pendingApprovals: number; openCommitments: number; unreadNotifications: number; timezone: string };
   stats: { needsYou: number; waitingOn: number; cleared: number; noiseFiltered: number };
 }

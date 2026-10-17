@@ -9,10 +9,13 @@
     "build": "tsc -p tsconfig.server.json && vite build",
     "start": "node dist-server/index.js",
     "chatgpt:connect": "tsx scripts/chatgpt-connect.ts",
-    "check": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit"
+    "check": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "test": "vitest run",
+    "test:pg": "DATABASE_URL=postgres://orbit:orbit@localhost:54329/orbit_test vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "latest",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@vitejs/plugin-react": "latest",
     "cookie-parser": "latest",
     "date-fns": "latest",
@@ -24,23 +27,28 @@
     "jose": "^6.2.12",
     "lucide-react": "latest",
     "node-cron": "latest",
+    "nodemailer": "^7.0.13",
     "openai": "latest",
     "pg": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "vite": "latest"
+    "undici": "^7.30.1",
+    "vite": "latest",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/cookie-parser": "latest",
     "@types/express": "latest",
     "@types/node": "latest",
+    "@types/nodemailer": "^8.0.2",
     "@types/pg": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "concurrently": "latest",
     "open": "^11.0.4",
     "tsx": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "vitest": "^3.2.7"
   },
   "engines": {
     "node": ">=20"
