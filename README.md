@@ -34,6 +34,7 @@ Most dashboards show more data. Orbit makes fewer demands on your attention.
 - OpenAI API, Anthropic API, OpenAI-compatible models, and eligible ChatGPT plan usage with a private rules-only mode
 - Focus queue with manual capture and completion
 - Visible per-connection sync errors plus safe clear-and-reprocess after changing AI providers
+- Owner-visible activity and diagnostics timeline with plain-language next steps; no message bodies, prompts, tokens, or AI answers are logged
 - PostgreSQL in production; zero-setup in-memory demo locally
 - Health check and production Docker image
 

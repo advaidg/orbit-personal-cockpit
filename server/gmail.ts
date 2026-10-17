@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { google, gmail_v1 } from 'googleapis';
 import { decrypt } from './crypto.js';
 import { buildBrief, understandMessages } from './ai.js';
-import { createTask, getConnections, getSettings, getSignals, getSignalSourceIds, saveBrief, upsertConnection, upsertSignal } from './store.js';
+import { createTask, getConnections, getSettings, getSignals, getSignalSourceIds, logActivity, saveBrief, upsertConnection, upsertSignal } from './store.js';
 import type { Connection, Signal } from './types.js';
 
 type GoogleTokens = { access_token?: string | null; refresh_token?: string | null; scope?: string; token_type?: string | null; expiry_date?: number | null };
@@ -60,10 +60,12 @@ const activeSyncs=new Map<string,Promise<{connections:number;fetched:number;proc
 async function runSyncUser(userId: string) {
   const connections = await getConnections(userId);
   const gmailConnections=connections.filter(c=>c.provider==='gmail'&&(c.status==='connected'||c.status==='error'));
+  await logActivity(userId,{type:'sync',status:'info',title:'Sync started',detail:gmailConnections.length?`Checking ${gmailConnections.length} Gmail connection${gmailConnections.length===1?'':'s'}.`:'No Gmail connection is available.'}).catch(console.error);
   const results=await Promise.allSettled(gmailConnections.map(syncGmailConnection));
   const failures:string[]=[];let fetched=0;let processed=0;
   for(let index=0;index<results.length;index++){const result=results[index];if(result.status==='fulfilled'){fetched+=result.value?.fetched||0;processed+=result.value?.processed||0;continue;}const connection=gmailConnections[index];const detail=result.reason instanceof Error?result.reason.message:'Unknown sync error';connection.status='error';connection.lastSyncAttemptAt=new Date().toISOString();connection.lastSyncError=/invalid_grant|unauthorized/i.test(detail)?'Gmail authorization expired. Disconnect and reconnect this account.':/AI provider|ChatGPT|OpenAI|Anthropic|model/i.test(detail)?'The selected AI provider failed. Check Intelligence settings, then retry.':'Gmail sync failed. Check the connection and try again.';await upsertConnection(connection);failures.push(`${connection.label}: ${connection.lastSyncError}`);console.error(result.reason);}
-  if(failures.length)throw new Error(failures.join(' '));
+  if(failures.length){await logActivity(userId,{type:'sync',status:'error',title:'Sync needs attention',detail:failures.join(' '),action:'Open Settings → Connected sources, correct the reported issue, then select Sync now.'}).catch(console.error);throw new Error(failures.join(' '));}
+  await logActivity(userId,{type:'sync',status:'success',title:'Sync completed',detail:gmailConnections.length?`Fetched ${fetched} messages and processed ${processed} new messages. Previously processed and filtered messages were skipped.`:'Nothing was synced because Gmail is not connected.',action:gmailConnections.length?undefined:'Connect Gmail to begin.'}).catch(console.error);
   return{connections:gmailConnections.length,fetched,processed};
 }
 

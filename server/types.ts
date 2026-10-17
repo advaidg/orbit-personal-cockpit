@@ -59,6 +59,17 @@ export interface Brief {
   generatedAt: string;
 }
 
+export interface ActivityEvent {
+  id: string;
+  userId: string;
+  type: 'sync' | 'ai' | 'connection' | 'settings' | 'data';
+  status: 'info' | 'success' | 'error';
+  title: string;
+  detail?: string;
+  action?: string;
+  createdAt: string;
+}
+
 export interface UserSettings {
   aiProvider: AiProvider;
   aiInputChars: number;
@@ -85,6 +96,7 @@ export interface DashboardData {
   tasks: Task[];
   connections: Connection[];
   settings: UserSettings;
+  activity: ActivityEvent[];
   system: { storage: 'postgres' | 'memory'; persistent: boolean; aiProviders: Array<{ id: AiProvider; label: string; configured: boolean; external: boolean }>; chatgpt:{connected:boolean;email?:string;hostId?:string} };
   stats: { needsYou: number; waitingOn: number; cleared: number; noiseFiltered: number };
 }

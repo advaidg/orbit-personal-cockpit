@@ -44,6 +44,8 @@ Visit `/health` and confirm `ok:true` and `database:postgres`. Then open the hom
 
 In **Settings → Sync schedule & inbox rules**, choose how far back the first import should read, cap the number of messages, exclude Gmail Promotions/Social/Forums, and add sender or keyword filters. Auto-sync can be paused without disconnecting Gmail; **Sync now** remains available. If you later change AI providers, use the explicitly confirmed **Clear & re-sync** operation to rebuild normalized signals, the brief, and email-generated tasks while preserving connections and manual tasks.
 
+The **Activity & diagnostics** panel keeps the latest 200 operational events per owner. It records counts, provider names, outcomes, and plain-language recovery suggestions—not email bodies, questions, AI answers, OAuth tokens, or secrets. The owner can clear the log independently of other data.
+
 ## Docker installation
 
 ```bash

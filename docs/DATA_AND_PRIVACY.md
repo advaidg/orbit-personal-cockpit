@@ -9,12 +9,14 @@ Orbit is designed around data minimization.
 - Signals: source, title, short summary, category, priority, time, and small provider metadata.
 - Tasks and their completion state.
 - The latest generated brief.
+- The latest 200 operational activity events: timestamps, counts, selected provider, outcome, and recovery guidance.
 
 ## What is not stored
 
 - Raw email bodies.
 - ChatGPT or Claude conversations.
 - AI prompts and responses as a historical log.
+- Email bodies, Ask Orbit questions, and AI answers in the activity log.
 - Google, OpenAI, or Anthropic passwords.
 - Browser cookies from another service.
 
@@ -23,6 +25,8 @@ During Gmail sync, message text exists in memory long enough to classify it. If 
 ## Retention
 
 Normalized signals older than `SIGNAL_RETENTION_DAYS` are deleted automatically each day. The default is 30 days. Tasks remain until deleted so that user-created commitments are not silently lost.
+
+Activity events are capped at 200 per owner and can be cleared independently from the dashboard.
 
 ## Personalization without hidden training
 
