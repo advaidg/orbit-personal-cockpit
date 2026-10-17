@@ -9,7 +9,7 @@
 
 [![MIT](https://img.shields.io/badge/license-MIT-c8f060?style=flat-square)](LICENSE)
 [![Self-hosted](https://img.shields.io/badge/self--hosted-your%20cloud%2C%20your%20data-1d1a16?style=flat-square)](#install-it-in-your-own-cloud)
-[![Tests](https://img.shields.io/badge/tests-243%20passing-2f6b4f?style=flat-square)](#how-its-built)
+[![Tests](https://img.shields.io/badge/tests-246%20passing-2f6b4f?style=flat-square)](#how-its-built)
 [![No sending](https://img.shields.io/badge/email%20sending-impossible%20by%20design-b4411f?style=flat-square)](#safety-you-can-verify)
 
 <p align="center">
