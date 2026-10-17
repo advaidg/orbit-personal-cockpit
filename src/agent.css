@@ -361,3 +361,6 @@ select.btn { padding-right: 8px; }
 .command-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; list-style: none; margin-left: -20px; }
 .command-line code { overflow-wrap: anywhere; }
 .file-pick { cursor: pointer; display: inline-flex; align-items: center; }
+.setup-advanced { margin-top: 4px; border: 1px dashed #353d31; border-radius: 12px; padding: 4px 14px; }
+.setup-advanced > summary { cursor: pointer; padding: 10px 0; font-size: 12.5px; color: var(--text-soft, #a3ac98); }
+.setup-advanced[open] > summary { margin-bottom: 6px; }

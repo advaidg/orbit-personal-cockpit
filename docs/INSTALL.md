@@ -14,6 +14,8 @@ Deploy the Orbit template, which creates:
 Orbit's application container is disposable by design. Persistent records live in PostgreSQL and survive normal application redeploys. Deleting the PostgreSQL service, its volume, the Railway project, or using Orbit's **Delete everything** control removes that data. Configure Railway backups separately if you need point-in-time recovery.
 - Independent generated session and encryption secrets.
 
+On Railway you can leave `APP_URL` empty: Orbit reads the public domain Railway assigns. (Set it yourself if you use a custom domain.)
+
 ### 2. Set the owner
 
 Set `OWNER_EMAIL` to the exact Google address permitted to enter this installation. Other Google identities are rejected after OAuth even if the OAuth project permits them.

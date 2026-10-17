@@ -49,10 +49,10 @@ function assertBundle(value:unknown):ChatGPTCredentials{
 
 export async function chatGPTSetup(userId:string){const connection=await ensureChatGPTHost(userId);return{hostId:connection.hostId,connected:!!connection.encryptedCredentials,email:connection.email};}
 
-export async function importChatGPTCredentials(userId:string,value:unknown){
+export async function importChatGPTCredentials(userId:string,value:unknown,verify:(credentials:ChatGPTCredentials)=>Promise<{subject:string;email:string}>=verifyIdentity){
   const credentials=assertBundle(value);const current=await ensureChatGPTHost(userId);
   if(credentials.ext_agent_host_id!==current.hostId)throw new Error('Credential host ID does not match this Orbit installation');
-  const identity=await verifyIdentity(credentials);
+  const identity=await verify(credentials);
   await saveChatGPTConnection({...current,clientId:credentials.client_id,email:identity.email,subject:identity.subject,encryptedCredentials:encrypt(credentials)});
   return{connected:true,email:identity.email};
 }

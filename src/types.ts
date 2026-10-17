@@ -74,7 +74,7 @@ export interface SetupStatus {
     chatgpt: { connected: boolean; email?: string; model?: string };
     openai: { configured: boolean; source: SetupSource; model?: string };
     anthropic: { configured: boolean; source: SetupSource; model?: string };
-    compatible: { configured: boolean; source: SetupSource; baseUrl?: string; model?: string };
+    compatible: { configured: boolean; keySaved: boolean; source: SetupSource; baseUrl?: string; model?: string };
   };
   federation: { enabled: boolean; source: SetupSource; address?: string; canEnable: boolean; blocker?: string };
 }

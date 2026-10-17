@@ -56,7 +56,8 @@ server.on('request',async(req,res)=>{
     const metadataResponse=await fetch(`${issuer}/.well-known/openid-configuration`);
     if(!metadataResponse.ok)throw new Error('Could not load OpenAI authorization configuration');
     const metadata=await metadataResponse.json() as {jwks_uri:string};
-    const {payload}=await jwtVerify(idToken,createRemoteJWKSet(new URL(metadata.jwks_uri)),{issuer,audience:clientId,nonce});
+    const {payload}=await jwtVerify(idToken,createRemoteJWKSet(new URL(metadata.jwks_uri)),{issuer,audience:clientId});
+    if(payload.nonce!==nonce)throw new Error('OpenAI identity token does not match this sign-in');
     if(typeof payload.sub!=='string')throw new Error('OpenAI identity token has no subject');
     const granted=String(token.scope||'').split(' ').filter(Boolean);
     if(!granted.includes('chatgpt.tokens.use.direct'))throw new Error('ChatGPT plan usage was not authorized');

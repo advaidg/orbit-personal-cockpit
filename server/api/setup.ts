@@ -8,6 +8,8 @@ import { getChatGPTConnection, getUser, getSettings } from '../store.js';
 import { pactLimits } from '../pacts/config.js';
 import { getBotToken, telegramApi } from '../telegram/api.js';
 import { isLinked, unlink } from '../telegram/link.js';
+import { beginChatGPTAuth, finishChatGPTAuth } from '../oauth/chatgptAuth.js';
+import { beginOpenRouterAuth, finishOpenRouterAuth } from '../oauth/openrouterAuth.js';
 import { handle, ownerId } from './http.js';
 
 export const setupRouter = express.Router();
@@ -105,7 +107,7 @@ setupRouter.get('/', handle(async (_req, res) => {
       chatgpt: { connected: !!chatgpt?.encryptedCredentials, email: chatgpt?.email, model: settings.chatgptModel },
       openai: { configured: !!setting('OPENAI_API_KEY'), source: source('OPENAI_API_KEY'), model: setting('OPENAI_MODEL') },
       anthropic: { configured: !!setting('ANTHROPIC_API_KEY'), source: source('ANTHROPIC_API_KEY'), model: setting('ANTHROPIC_MODEL') },
-      compatible: { configured: !!setting('AI_BASE_URL') && !!setting('AI_COMPATIBLE_MODEL'), source: source('AI_BASE_URL'), baseUrl: setting('AI_BASE_URL'), model: setting('AI_COMPATIBLE_MODEL') }
+      compatible: { configured: !!setting('AI_BASE_URL') && !!setting('AI_COMPATIBLE_MODEL'), keySaved: !!setting('AI_COMPATIBLE_API_KEY'), source: source('AI_BASE_URL'), baseUrl: setting('AI_BASE_URL'), model: setting('AI_COMPATIBLE_MODEL') }
     },
     federation: federationState()
   });
@@ -231,6 +233,32 @@ setupRouter.delete('/ai/:provider', handle(async (req, res) => {
   for (const key of list) await clearSetting(userId, key);
   res.status(204).end();
 }));
+
+// ---- One-click sign-in flows --------------------------------------------------------------------------------------------
+
+setupRouter.post('/chatgpt/start', handle(async (_req, res) => {
+  res.status(201).json(await beginChatGPTAuth(ownerId(res)));
+}));
+
+setupRouter.post('/chatgpt/finish', handle(async (req, res) => {
+  const { url } = z.object({ url: z.string().min(10).max(4000) }).parse(req.body);
+  res.json(await finishChatGPTAuth(ownerId(res), url));
+}));
+
+setupRouter.post('/openrouter/start', handle(async (_req, res) => {
+  res.status(201).json(beginOpenRouterAuth(ownerId(res)));
+}));
+
+/** OpenRouter sends the owner's browser back here. It answers with a redirect to the app, never with the key. */
+setupRouter.get('/openrouter/callback', async (req, res) => {
+  try {
+    await finishOpenRouterAuth(ownerId(res), { code: req.query.code, s: req.query.s });
+    res.redirect(303, '/?connected=openrouter#/connections');
+  } catch (error) {
+    const message = error instanceof ActionableError ? `${error.message} ${error.options.action ?? ''}`.trim() : 'OpenRouter sign-in failed. Try again.';
+    res.redirect(303, `/?setup_error=${encodeURIComponent(redact(message, 200))}#/connections`);
+  }
+});
 
 // ---- Orbit-to-Orbit ---------------------------------------------------------------------------------------------------
 

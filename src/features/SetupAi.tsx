@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Brain } from 'lucide-react';
 import { api, describeError } from '../api';
 import type { SetupStatus } from '../types';
@@ -56,6 +56,9 @@ export function SetupAi({ status, onChanged, onNotice }: Props) {
   const run = async (work: () => Promise<void>) => { setBusy(true); setError(undefined); try { await work(); } catch (failure) { setError(describeError(failure)); } finally { setBusy(false); } };
   const reset = (next: Tab) => { setTab(next); setError(undefined); setModels([]); setChecked(''); setKey(''); setModel(''); };
 
+  // Back from OpenRouter with a saved key but no model yet: show the choices straight away.
+  useEffect(() => { if (tab === 'openrouter' && isOpenRouter(compat.baseUrl) && compat.keySaved && !compat.model && !models.length) void check(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, compat.baseUrl, compat.keySaved, compat.model]);
   const check = () => run(async () => {
     const result = await api.post<{ verdict: string; models: string[] }>('/api/setup/ai/models', { provider, apiKey: key || undefined, baseUrl: provider === 'compatible' ? address : undefined });
     setModels(result.models);
@@ -75,7 +78,9 @@ export function SetupAi({ status, onChanged, onNotice }: Props) {
   const useRules = () => run(async () => { await api.patch('/api/settings', { aiProvider: 'rules' }); onNotice('Back to private rules. Nothing leaves your server.'); onChanged(); });
   const remove = () => run(async () => { await api.del(`/api/setup/ai/${provider}`); onNotice('Removed.'); onChanged(); });
 
-  const needsKey = provider !== 'compatible' ? !current.configured : tab === 'openrouter' && !(sameServer && compat.configured);
+  const needsKey = provider !== 'compatible' ? !current.configured : tab === 'openrouter' && !(sameServer && compat.keySaved);
+  const keyConnected = tab === 'openrouter' && isOpenRouter(compat.baseUrl) && compat.keySaved;
+  const connectOpenRouter = () => run(async () => { const result = await api.post<{ url: string }>('/api/setup/openrouter/start'); window.location.href = result.url; });
   const note = tab === 'openai' ? 'Create a key at platform.openai.com/api-keys.' : tab === 'anthropic' ? 'Create a key at console.anthropic.com/settings/keys. Anthropic connects with an API key.' : tab === 'openrouter' ? 'One key, hundreds of models (Claude, GPT, Llama, Gemini…). Create it at openrouter.ai/keys.' : preset.keyHelp;
   const external = status.active !== 'rules';
   const placeholder = sameServer && compat.model ? compat.model : provider !== 'compatible' ? status[provider].model ?? MODEL_HINT[tab] : MODEL_HINT[tab];
@@ -83,11 +88,13 @@ export function SetupAi({ status, onChanged, onNotice }: Props) {
   return (
     <div className="setup-body">
       <div className="setup-head"><div><h4><Brain size={15} aria-hidden /> Intelligence</h4><p>Orbit works fully private with no AI. Add a provider only if you want smarter summaries and drafts. Text is sent to it only while you have it switched on.</p></div><Chip tone={external ? 'info' : 'good'}>{external ? `Using ${status.active}` : 'Private rules'}</Chip></div>
-      <div className="seg-row wrap" role="tablist" aria-label="Provider">{TABS.map((item) => <button type="button" role="tab" aria-selected={tab === item.id} key={item.id} className={tab === item.id ? 'active' : ''} onClick={() => reset(item.id)}>{item.label}{configured(item.id) ? ' ✓' : ''}</button>)}</div>
+      <div className="seg-row wrap" role="tablist" aria-label="Provider">{TABS.map((item) => <button type="button" role="tab" aria-selected={tab === item.id} key={item.id} className={tab === item.id ? 'active' : ''} onClick={() => reset(item.id)}>{item.label}{configured(item.id) ? ' ✓' : item.id === 'openrouter' && compat.keySaved && isOpenRouter(compat.baseUrl) ? ' •' : ''}</button>)}</div>
 
       {tab === 'chatgpt' ? <SetupChatGpt status={status} onChanged={onChanged} onNotice={onNotice} /> : (
         <form className="setup-form" onSubmit={save}>
           <p className="hint">{note}</p>
+          {tab === 'openrouter' && !keyConnected && <div className="row-gap"><button className="btn primary" type="button" disabled={busy} onClick={connectOpenRouter}>Connect OpenRouter</button><span className="hint">One click — you approve on OpenRouter and come straight back. Or paste a key below.</span></div>}
+          {keyConnected && !compat.model && <p className="hint good" role="status">Connected to OpenRouter. Choose a model below and save.</p>}
           {tab === 'other' && (
             <>
               <label className="field"><span>Provider</span><select value={preset.label} onChange={(event) => { const next = PRESETS.find((item) => item.label === event.target.value) ?? PRESETS[0]; setPreset(next); setBaseUrl(next.baseUrl); setModels([]); }}>{PRESETS.map((item) => <option key={item.label}>{item.label}</option>)}</select></label>

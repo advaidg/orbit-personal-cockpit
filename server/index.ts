@@ -43,11 +43,13 @@ import { pactsRouter } from './api/pacts.js';
 import { federationRouter } from './api/federation.js';
 import { channelsRouter } from './api/channels.js';
 import { setupRouter } from './api/setup.js';
+import { applyDerivedAppUrl } from './deploy.js';
 import { loadInstallationConfig } from './installationConfig.js';
 import { publicPactRouter } from './pacts/publicRouter.js';
 import { federationPublicRouter } from './federation/router.js';
 import { startTelegramBot } from './telegram/poller.js';
 
+applyDerivedAppUrl();
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const production = process.env.NODE_ENV === 'production';

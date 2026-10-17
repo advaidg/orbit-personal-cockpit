@@ -2,23 +2,17 @@
 
 Orbit supports OpenAI's Sign in with ChatGPT token-sharing preview for eligible open-source tools. This is distinct from an OpenAI API key. Availability, eligible plans, limits, and supported models are controlled by OpenAI and may change during the preview.
 
-## Connect a Railway installation
+## Connect (about a minute, no command line)
 
-1. Sign in to Orbit, open **Connections → Set up Orbit → Intelligence → ChatGPT plan**, and select **Get my command**. (The same flow also remains in **Settings**.)
-2. Copy the command shown. On a trusted computer, clone this repository and run `npm install`.
-3. Run the copied command. It looks like:
+1. In Orbit open **Connections → Set up Orbit → Intelligence → ChatGPT plan** and press **Sign in with ChatGPT**.
+2. OpenAI opens in a new tab. Sign in and approve access.
+3. Your browser then shows *“This site can’t be reached”* at an address starting with `http://127.0.0.1`. **That is expected.** Copy the whole address from the address bar.
+4. Paste it into Orbit. Orbit finishes the sign-in on the server, checks the identity with OpenAI, and stores the credentials encrypted.
+5. Pick one of the models returned for your account and press **Use ChatGPT plan**.
 
-   ```bash
-   npm run chatgpt:connect -- --host-id urn:uuid:YOUR-INSTALLATION-ID
-   ```
+The address you paste carries a one-time code. Orbit only accepts one that matches the sign-in it started (same state value, same loopback address), uses the code once, and keeps the PKCE secret on the server. Each installation has a stable random host ID, so credentials for one installation cannot be used by another.
 
-4. Your browser opens OpenAI's authorization page. Sign in and approve access.
-5. The helper writes `orbit-chatgpt-credentials.json` with owner-only file permissions. It never prints tokens to the terminal.
-6. Return to Orbit Settings and import that file. Orbit validates it against OpenAI, confirms that it belongs to this installation, and encrypts it before PostgreSQL storage.
-7. Delete the local JSON file after the import succeeds. Never commit, share, email, or upload it anywhere else.
-8. Choose **ChatGPT plan (preview)**, select one of the models returned for your account, and save AI settings.
-
-The local callback binds only to `127.0.0.1` and uses OAuth state, nonce, and PKCE S256. Each Orbit installation receives a stable random host ID, so a credential bundle generated for one installation cannot be imported into another.
+**Fallback:** if you cannot paste an address (for example on a locked-down phone), the same panel offers the older helper, which runs one command on your own computer and uploads a credentials file. See `scripts/chatgpt-connect.ts`.
 
 ## Data and limitations
 

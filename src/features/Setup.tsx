@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Users } from 'lucide-react';
 import { api, describeError } from '../api';
 import { useLoad } from '../hooks';
@@ -27,6 +27,17 @@ function Sharing({ status, onChanged, onNotice }: { status: SetupStatus['federat
 /** Everything that used to need environment variables and a redeploy, in one place. */
 export function Setup({ onChanged, onNotice }: { onChanged: () => void; onNotice: (message: string) => void }) {
   const status = useLoad(() => api.get<SetupStatus>('/api/setup'));
+  // Returning from a provider's sign-in page: say what happened, then tidy the address.
+  useEffect(() => {
+    const query = new URLSearchParams(location.search);
+    const failed = query.get('setup_error');
+    const connected = query.get('connected');
+    if (!failed && !connected) return;
+    onNotice(failed ?? `${connected === 'openrouter' ? 'OpenRouter' : 'Provider'} connected.`);
+    history.replaceState(null, '', `${location.pathname}${location.hash}`);
+    void status.reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const refresh = () => { void status.reload(); onChanged(); };
   const data = status.data;
   const ready = data ? [data.telegram.linked, data.email.configured, data.ai.active !== 'rules', data.federation.enabled].filter(Boolean).length : 0;
