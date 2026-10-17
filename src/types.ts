@@ -71,6 +71,7 @@ export interface SetupStatus {
   email: { configured: boolean; source: SetupSource; host?: string; port?: string; secure?: boolean; user?: string; from?: string; to?: string };
   ai: {
     active: string;
+    chatgpt: { connected: boolean; email?: string; model?: string };
     openai: { configured: boolean; source: SetupSource; model?: string };
     anthropic: { configured: boolean; source: SetupSource; model?: string };
     compatible: { configured: boolean; source: SetupSource; baseUrl?: string; model?: string };

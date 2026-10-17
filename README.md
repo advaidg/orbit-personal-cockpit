@@ -9,7 +9,7 @@
 
 [![MIT](https://img.shields.io/badge/license-MIT-c8f060?style=flat-square)](LICENSE)
 [![Self-hosted](https://img.shields.io/badge/self--hosted-your%20cloud%2C%20your%20data-1d1a16?style=flat-square)](#install-it-in-your-own-cloud)
-[![Tests](https://img.shields.io/badge/tests-260%20passing-2f6b4f?style=flat-square)](#how-its-built)
+[![Tests](https://img.shields.io/badge/tests-263%20passing-2f6b4f?style=flat-square)](#how-its-built)
 [![No sending](https://img.shields.io/badge/email%20sending-impossible%20by%20design-b4411f?style=flat-square)](#safety-you-can-verify)
 
 <p align="center">
@@ -66,7 +66,7 @@ Open <http://localhost:5173>. Go to **Pacts → Make a pact**, copy the link int
 | **Automations** | Eight ready recipes (morning brief, bills due, no-reply follow-ups…) with dry-run, per-day limits and a kill switch. |
 | **Ask Orbit** | Natural-language requests become typed tool calls, never free-form actions. Works with no AI provider at all. |
 | **Skills & MCP** | Optional and **off by default**. Declarative HTTP skills and MCP servers, domain-allowlisted, always approval-gated. |
-| **Bring your own brain** | Private rules-only mode (nothing leaves your server), OpenAI, Anthropic, any OpenAI-compatible endpoint, or your ChatGPT plan. |
+| **Bring your own brain** | Private rules-only mode (nothing leaves your server), your ChatGPT plan, OpenAI, Anthropic, OpenRouter, or any OpenAI-compatible server. Switch any time, from the UI. |
 
 <p align="center">
   <img src="docs/images/approvals.jpg" alt="The Approval Center: what will change, why, and what leaves your install" width="860">
@@ -149,7 +149,7 @@ Open **Connections → Set up Orbit**. Everything below is a form in your browse
 | --- | --- | --- |
 | Chat from your phone | Setup → Telegram | Open @BotFather, make a bot, paste the token, tap **Link my chat** and press Start. Orbit watches for it and says when you are connected. |
 | Email digests | Setup → Email | Pick Gmail / Outlook / Other, enter the details. Orbit signs in to check before saving. |
-| A smarter brain | Setup → Intelligence | Paste an OpenAI or Anthropic key (verified before saving), or point at a local model (Ollama, LM Studio…). Or stay on private rules. |
+| A smarter brain | Setup → Intelligence | Pick **ChatGPT plan**, **OpenAI**, **Anthropic**, **OpenRouter** (one key, hundreds of models) or **Other** (Ollama, LM Studio, Groq, Together, Mistral, any OpenAI-compatible server). Keys are checked and the model list is loaded before you save. Or stay on private rules. |
 | Share pacts with friends who run Orbit | Setup → Share pacts | One switch. |
 | Gmail reply drafts | Connections → Gmail access | Choose *Read plus create drafts*. |
 
@@ -173,7 +173,7 @@ Telegram / Ask Orbit / Automations ──┴─▶ proposals ──▶ policy �
 - **Durable job queue** on Postgres (`FOR UPDATE SKIP LOCKED`, backoff, idempotency keys, stale-job recovery, cancel).
 - **Versioned migrations** with an advisory lock; legacy installs adopt them automatically.
 - **Policy engine** is a pure function over risk classes (read · local · notify · draft · calendar · send · delete · financial · shell · skill). Env sets the ceiling; the UI can only be stricter.
-- **Two storage modes with identical behavior**: in-memory for demos, Postgres for real use. The same 260 tests run against both.
+- **Two storage modes with identical behavior**: in-memory for demos, Postgres for real use. The same 263 tests run against both.
 - **Small surface**: 116 KB gzipped JS, no telemetry, no third-party scripts.
 
 ```bash
@@ -184,7 +184,7 @@ npm run check     # strict type-check: app, server, tests
 
 ## Status — read this before you rely on it
 
-Orbit is **early software, built in the open**. The core is solid: 260 automated tests covering the approval flow, policy, idempotency, retries, prompt-injection handling, cross-account isolation, pact links, federation signing/replay/forgery, and Telegram linking. But the integrations that need *your* accounts (real Google OAuth, a real Telegram bot, a second real Orbit install) are exercised in CI through fakes. **Try it on a throwaway Gmail first and [open an issue](https://github.com/advaidg/orbit-personal-cockpit/issues) when something is off.**
+Orbit is **early software, built in the open**. The core is solid: 263 automated tests covering the approval flow, policy, idempotency, retries, prompt-injection handling, cross-account isolation, pact links, federation signing/replay/forgery, and Telegram linking. But the integrations that need *your* accounts (real Google OAuth, a real Telegram bot, a second real Orbit install) are exercised in CI through fakes. **Try it on a throwaway Gmail first and [open an issue](https://github.com/advaidg/orbit-personal-cockpit/issues) when something is off.**
 
 Known limits, stated plainly:
 

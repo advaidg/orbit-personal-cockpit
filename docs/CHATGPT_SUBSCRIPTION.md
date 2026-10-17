@@ -4,7 +4,7 @@ Orbit supports OpenAI's Sign in with ChatGPT token-sharing preview for eligible 
 
 ## Connect a Railway installation
 
-1. Sign in to Orbit, open **Settings**, and select **Prepare ChatGPT connection**.
+1. Sign in to Orbit, open **Connections → Set up Orbit → Intelligence → ChatGPT plan**, and select **Get my command**. (The same flow also remains in **Settings**.)
 2. Copy the command shown. On a trusted computer, clone this repository and run `npm install`.
 3. Run the copied command. It looks like:
 

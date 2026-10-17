@@ -356,3 +356,8 @@ select.btn { padding-right: 8px; }
 .setup-form { display: grid; gap: 12px; max-width: 520px; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 720px) { .setup-head { flex-direction: column; } .field-row { grid-template-columns: 1fr; } }
+.seg-row.wrap { flex-wrap: wrap; }
+.seg-row.wrap button { flex: 1 1 auto; min-width: 96px; padding: 0 12px; }
+.command-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; list-style: none; margin-left: -20px; }
+.command-line code { overflow-wrap: anywhere; }
+.file-pick { cursor: pointer; display: inline-flex; align-items: center; }

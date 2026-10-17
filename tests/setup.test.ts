@@ -145,7 +145,7 @@ describe(`AI keys (${storageMode})`, () => {
     const { url } = await app();
     delete process.env.OPENAI_API_KEY;
     expect(aiProviders(false).find((item) => item.id === 'openai')?.configured).toBe(false);
-    restoreVerifiers = setSetupVerifiers({ keys: async (_provider, value) => (value === key ? 'ok' : 'rejected') });
+    restoreVerifiers = setSetupVerifiers({ probe: async (_provider, value) => ({ verdict: value === key ? 'ok' : 'rejected', models: [] }) });
     const rejected = await fetch(`${url}/api/setup/ai`, json('PUT', { provider: 'openai', apiKey: 'sk-wrong-1234567890abcdefghij' }));
     expect(rejected.status).toBe(400);
     expect(aiProviders(false).find((item) => item.id === 'openai')?.configured).toBe(false);
@@ -161,19 +161,59 @@ describe(`AI keys (${storageMode})`, () => {
 
   it('still saves when the provider cannot be reached, but says so', async () => {
     const { url } = await app();
-    restoreVerifiers = setSetupVerifiers({ keys: async () => 'unreachable' });
+    restoreVerifiers = setSetupVerifiers({ probe: async () => ({ verdict: 'unreachable', models: [] }) });
     const response = await (await fetch(`${url}/api/setup/ai`, json('PUT', { provider: 'anthropic', apiKey: key }))).json();
     expect(response.warning).toMatch(/could not reach/i);
     expect(setting('ANTHROPIC_API_KEY')).toBe(key);
   });
 
-  it('configures a local or compatible model and validates the address', async () => {
+  it('configures OpenRouter, a local model or any compatible server, and validates the address', async () => {
     const { url } = await app();
+    restoreVerifiers = setSetupVerifiers({ probe: async (_provider, value) => ({ verdict: value === 'bad-key' ? 'rejected' : 'ok', models: [] }) });
     expect((await fetch(`${url}/api/setup/ai`, json('PUT', { provider: 'compatible', baseUrl: 'ftp://nope', model: 'llama3' }))).status).toBe(400);
-    expect((await fetch(`${url}/api/setup/ai`, json('PUT', { provider: 'compatible', baseUrl: 'http://localhost:11434/v1', model: 'llama3' }))).status).toBe(200);
-    expect(aiProviders(false).find((item) => item.id === 'openai-compatible')?.configured).toBe(true);
+    const rejected = await fetch(`${url}/api/setup/ai`, json('PUT', { provider: 'compatible', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4o', apiKey: 'bad-key' }));
+    expect(rejected.status).toBe(400);
+    expect(setting('AI_BASE_URL')).toBeUndefined();
+    const ok = await fetch(`${url}/api/setup/ai`, json('PUT', { provider: 'compatible', baseUrl: 'https://openrouter.ai/api/v1', model: 'anthropic/claude-sonnet-4.5', apiKey: 'or-key-1234567890' }));
+    expect(ok.status).toBe(200);
+    const provider = aiProviders(false).find((item) => item.id === 'openai-compatible')!;
+    expect(provider).toMatchObject({ configured: true, external: true });
+    const status = await (await fetch(`${url}/api/setup`)).text();
+    expect(status).not.toContain('or-key-1234567890');
+    expect(JSON.parse(status).ai.compatible).toMatchObject({ configured: true, baseUrl: 'https://openrouter.ai/api/v1', model: 'anthropic/claude-sonnet-4.5' });
     expect((await fetch(`${url}/api/setup/ai`, json('PUT', { provider: 'mystery', apiKey: key }))).status).toBe(400);
     expect((await fetch(`${url}/api/setup/ai/mystery`, json('DELETE'))).status).toBe(404);
+  });
+
+  it('treats a local address as local and warns when a cloud server cannot reach it', async () => {
+    const { url } = await app();
+    restoreVerifiers = setSetupVerifiers({ probe: async () => ({ verdict: 'unreachable', models: [] }) });
+    const response = await (await fetch(`${url}/api/setup/ai`, json('PUT', { provider: 'compatible', baseUrl: 'http://localhost:11434/v1', model: 'llama3.1' }))).json();
+    expect(response.warning).toMatch(/localhost|cloud/i);
+    const provider = aiProviders(false).find((item) => item.id === 'openai-compatible')!;
+    expect(provider).toMatchObject({ configured: true, external: false });
+  });
+
+  it('lists a key’s models without saving it, keeping the key out of the URL', async () => {
+    const { url } = await app();
+    const seen: Array<{ provider: string; key?: string; baseUrl?: string }> = [];
+    restoreVerifiers = setSetupVerifiers({ probe: async (provider, value, baseUrl) => { seen.push({ provider, key: value, baseUrl }); return value === 'wrong' ? { verdict: 'rejected', models: [] } : { verdict: 'ok', models: ['model-a', 'model-b'] }; } });
+    const ask = (body: object) => fetch(`${url}/api/setup/ai/models`, json('POST', body));
+    const good = await (await ask({ provider: 'anthropic', apiKey: key })).json();
+    expect(good.models).toEqual(['model-a', 'model-b']);
+    expect(setting('ANTHROPIC_API_KEY')).toBeUndefined();
+    expect((await ask({ provider: 'openai', apiKey: 'wrong' })).status).toBe(400);
+    expect((await ask({ provider: 'openai' })).status).toBe(400);
+    expect((await ask({ provider: 'compatible' })).status).toBe(400);
+    expect((await ask({ provider: 'compatible', baseUrl: 'https://openrouter.ai/api/v1' })).status).toBe(200);
+    expect(seen.at(-1)).toEqual({ provider: 'compatible', key: undefined, baseUrl: 'https://openrouter.ai/api/v1' });
+    expect((await ask({ provider: 'nope' })).status).toBe(400);
+  });
+
+  it('reports ChatGPT plan state without exposing credentials', async () => {
+    const { url } = await app();
+    const status = await (await fetch(`${url}/api/setup`)).json();
+    expect(status.ai.chatgpt).toEqual({ connected: false });
   });
 });
 

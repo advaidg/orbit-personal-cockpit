@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { selectedProvider } from '../ai.js';
 import { ActionableError, redact } from '../diagnostics.js';
 import { clearSetting, saveSetting, setting, settingSource, settingsPersist, type ManagedKey } from '../installationConfig.js';
-import { getUser, getSettings } from '../store.js';
+import { getChatGPTConnection, getUser, getSettings } from '../store.js';
 import { pactLimits } from '../pacts/config.js';
 import { getBotToken, telegramApi } from '../telegram/api.js';
 import { isLinked, unlink } from '../telegram/link.js';
@@ -15,35 +15,46 @@ export const setupRouter = express.Router();
 // ---- test seams: the real network calls, replaceable so setup can be tested without any account ----------------
 
 export type SmtpVerifier = (url: string) => Promise<void>;
-export type KeyVerifier = (provider: 'openai' | 'anthropic', key: string) => Promise<'ok' | 'rejected' | 'unreachable'>;
+export type Verdict = 'ok' | 'rejected' | 'unreachable';
+export interface ProbeResult { verdict: Verdict; models: string[] }
+/** Asks a provider which models a key can use. A 401/403 means the key is wrong; anything else means "could not tell". */
+export type ModelProbe = (provider: 'openai' | 'anthropic' | 'compatible', key: string | undefined, baseUrl?: string) => Promise<ProbeResult>;
 
 const realSmtpVerifier: SmtpVerifier = async (url) => {
   // Timeouts live in the transport options (the second argument of createTransport is for mail defaults).
   await nodemailer.createTransport({ url, connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 15_000 }).verify();
 };
 
-const realKeyVerifier: KeyVerifier = async (provider, key) => {
-  const request: { url: string; headers: Record<string, string> } = provider === 'openai'
-    ? { url: 'https://api.openai.com/v1/models', headers: { Authorization: `Bearer ${key}` } }
-    : { url: 'https://api.anthropic.com/v1/models', headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' } };
+const MAX_MODELS = 400;
+const NOT_CHAT = /embed|whisper|tts|dall-e|moderation|transcribe|realtime|audio|image|davinci|babbage/i;
+
+const realModelProbe: ModelProbe = async (provider, key, baseUrl) => {
+  const request: { url: string; headers: Record<string, string> } =
+    provider === 'openai' ? { url: 'https://api.openai.com/v1/models', headers: { Authorization: `Bearer ${key}` } }
+    : provider === 'anthropic' ? { url: 'https://api.anthropic.com/v1/models?limit=100', headers: { 'x-api-key': key ?? '', 'anthropic-version': '2023-06-01' } }
+    : { url: `${(baseUrl ?? '').replace(/\/+$/, '')}/models`, headers: key ? { Authorization: `Bearer ${key}` } : {} };
   try {
     const response = await fetch(request.url, { headers: request.headers, signal: AbortSignal.timeout(10_000) });
-    if (response.status === 401 || response.status === 403) return 'rejected';
-    return response.ok ? 'ok' : 'unreachable';
+    if (response.status === 401 || response.status === 403) return { verdict: 'rejected', models: [] };
+    if (!response.ok) return { verdict: 'unreachable', models: [] };
+    const body = (await response.json().catch(() => ({}))) as { data?: Array<{ id?: unknown }> };
+    const ids = (body.data ?? []).map((item) => (typeof item.id === 'string' ? item.id : '')).filter(Boolean);
+    const chat = provider === 'openai' ? ids.filter((id) => !NOT_CHAT.test(id)) : ids;
+    return { verdict: 'ok', models: [...new Set(chat)].sort().slice(0, MAX_MODELS) };
   } catch {
-    return 'unreachable';
+    return { verdict: 'unreachable', models: [] };
   }
 };
 
 let smtpVerifier = realSmtpVerifier;
-let keyVerifier = realKeyVerifier;
+let modelProbe = realModelProbe;
 
 /** Replaces the network checks (tests). Returns a function that restores the real ones. */
-export function setSetupVerifiers(next: { smtp?: SmtpVerifier; keys?: KeyVerifier }): () => void {
-  const previous = { smtpVerifier, keyVerifier };
+export function setSetupVerifiers(next: { smtp?: SmtpVerifier; probe?: ModelProbe }): () => void {
+  const previous = { smtpVerifier, modelProbe };
   smtpVerifier = next.smtp ?? smtpVerifier;
-  keyVerifier = next.keys ?? keyVerifier;
-  return () => { smtpVerifier = previous.smtpVerifier; keyVerifier = previous.keyVerifier; };
+  modelProbe = next.probe ?? modelProbe;
+  return () => { smtpVerifier = previous.smtpVerifier; modelProbe = previous.modelProbe; };
 }
 
 // ---- helpers ----------------------------------------------------------------------------------------------------------
@@ -83,7 +94,7 @@ const MODEL = /^[\w.:/-]{1,80}$/;
 
 setupRouter.get('/', handle(async (_req, res) => {
   const userId = ownerId(res);
-  const [linked, settings] = await Promise.all([isLinked(userId), getSettings(userId)]);
+  const [linked, settings, chatgpt] = await Promise.all([isLinked(userId), getSettings(userId), getChatGPTConnection(userId)]);
   const configured = !!getBotToken();
   res.json({
     persistent: settingsPersist(),
@@ -91,6 +102,7 @@ setupRouter.get('/', handle(async (_req, res) => {
     email: { configured: !!setting('SMTP_URL'), source: source('SMTP_URL'), ...smtpSummary(), from: setting('DIGEST_FROM'), to: setting('DIGEST_TO') },
     ai: {
       active: selectedProvider(settings.aiProvider),
+      chatgpt: { connected: !!chatgpt?.encryptedCredentials, email: chatgpt?.email, model: settings.chatgptModel },
       openai: { configured: !!setting('OPENAI_API_KEY'), source: source('OPENAI_API_KEY'), model: setting('OPENAI_MODEL') },
       anthropic: { configured: !!setting('ANTHROPIC_API_KEY'), source: source('ANTHROPIC_API_KEY'), model: setting('ANTHROPIC_MODEL') },
       compatible: { configured: !!setting('AI_BASE_URL') && !!setting('AI_COMPATIBLE_MODEL'), source: source('AI_BASE_URL'), baseUrl: setting('AI_BASE_URL'), model: setting('AI_COMPATIBLE_MODEL') }
@@ -167,17 +179,20 @@ setupRouter.put('/ai', handle(async (req, res) => {
   const userId = ownerId(res);
   let warning: string | undefined;
   if (input.provider === 'compatible') {
+    const probe = await modelProbe('compatible', input.apiKey ?? setting('AI_COMPATIBLE_API_KEY'), input.baseUrl);
+    if (probe.verdict === 'rejected') throw new ActionableError('That server rejected the key.', { action: 'Check the key and that it belongs to this provider.', code: 'bad_key', retryable: true });
+    if (probe.verdict === 'unreachable') warning = 'Saved, but I could not reach that address from this server. If it is on your own computer (localhost), a cloud-hosted Orbit cannot see it.';
     await saveSetting(userId, 'AI_BASE_URL', input.baseUrl);
     await saveSetting(userId, 'AI_COMPATIBLE_MODEL', input.model);
     if (input.apiKey) await saveSetting(userId, 'AI_COMPATIBLE_API_KEY', input.apiKey);
-    return res.json({ ok: true });
+    return res.json({ ok: true, warning });
   }
   const keyName: ManagedKey = input.provider === 'openai' ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY';
   const modelName: ManagedKey = input.provider === 'openai' ? 'OPENAI_MODEL' : 'ANTHROPIC_MODEL';
   const key = input.apiKey ?? setting(keyName);
   if (!key) throw new ActionableError('Paste your API key to continue.', { action: input.provider === 'openai' ? 'Create one at platform.openai.com/api-keys.' : 'Create one at console.anthropic.com/settings/keys.', code: 'key_required' });
   if (input.apiKey) {
-    const verdict = await keyVerifier(input.provider, input.apiKey);
+    const { verdict } = await modelProbe(input.provider, input.apiKey);
     if (verdict === 'rejected') throw new ActionableError('That provider rejected the key.', { action: 'Check you copied the whole key and that it is active.', code: 'bad_key', retryable: true });
     if (verdict === 'unreachable') warning = 'Saved, but I could not reach the provider to confirm the key. Try Ask Orbit to see if it works.';
     await saveSetting(userId, keyName, input.apiKey);
@@ -185,6 +200,27 @@ setupRouter.put('/ai', handle(async (req, res) => {
   if (input.model) await saveSetting(userId, modelName, input.model);
   else if (input.model === '') await clearSetting(userId, modelName);
   res.json({ ok: true, warning });
+}));
+
+const modelsBody = z.object({
+  provider: z.enum(['openai', 'anthropic', 'compatible']),
+  apiKey: z.string().trim().max(300).regex(/^\S*$/, 'A key has no spaces').optional(),
+  baseUrl: z.string().trim().url().max(300).refine((value) => /^https?:\/\//.test(value), 'Use an http or https address').optional()
+});
+
+/**
+ * Checks a key and lists the models it can use, without saving anything. The key travels in the request body
+ * (never the URL) and is only used for this one call.
+ */
+setupRouter.post('/ai/models', handle(async (req, res) => {
+  const input = modelsBody.parse(req.body);
+  if (input.provider === 'compatible' && !input.baseUrl) throw new ActionableError('Enter the server address first.', { action: 'For example https://openrouter.ai/api/v1.', code: 'invalid_request' });
+  const saved = input.provider === 'openai' ? setting('OPENAI_API_KEY') : input.provider === 'anthropic' ? setting('ANTHROPIC_API_KEY') : input.baseUrl === setting('AI_BASE_URL') ? setting('AI_COMPATIBLE_API_KEY') : undefined;
+  const key = input.apiKey || saved;
+  if (!key && input.provider !== 'compatible') throw new ActionableError('Paste your API key first.', { action: 'Then check it again.', code: 'key_required' });
+  const probe = await modelProbe(input.provider, key, input.baseUrl);
+  if (probe.verdict === 'rejected') throw new ActionableError('That provider rejected the key.', { action: 'Check you copied the whole key and that it is active.', code: 'bad_key', retryable: true });
+  res.json({ verdict: probe.verdict, models: probe.models });
 }));
 
 setupRouter.delete('/ai/:provider', handle(async (req, res) => {

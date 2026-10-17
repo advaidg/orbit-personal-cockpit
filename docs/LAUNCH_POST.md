@@ -12,7 +12,7 @@ Orbit turns a promise into a pact: a private link the other person opens with no
 
 The part I care most about: it asks before it acts. Every proposal shows what changes and what leaves your server. It writes Gmail drafts but has no code path that sends email. Everything it "learns" is a plain sentence you can edit.
 
-It's open source (MIT), self-hosted on Railway, a $5 VPS or Docker, with 260 automated tests. Early software, so try it on a throwaway Gmail first.
+It's open source (MIT), self-hosted on Railway, a $5 VPS or Docker, with 263 automated tests. Early software, so try it on a throwaway Gmail first.
 
 Repo: https://github.com/advaidg/orbit-personal-cockpit
 
@@ -31,6 +31,6 @@ I got tired of agents that "do things for me" with no way to see or stop what th
 - The unusual part, **pacts**: turn a promise into a private link; the other person answers in one tap with no account. Orbit-to-Orbit sharing uses Ed25519-signed messages and explicit two-way trust.
 - Works with no AI provider at all (rules mode), or OpenAI / Anthropic / any OpenAI-compatible endpoint.
 
-Honest status: early. 260 tests (memory + Postgres), but the Google/Telegram integrations are tested through fakes, so use a throwaway account first. Feedback and bug reports very welcome.
+Honest status: early. 263 tests (memory + Postgres), but the Google/Telegram integrations are tested through fakes, so use a throwaway account first. Feedback and bug reports very welcome.
 
 https://github.com/advaidg/orbit-personal-cockpit
