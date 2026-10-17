@@ -27,7 +27,7 @@
     "jose": "^6.2.12",
     "lucide-react": "latest",
     "node-cron": "latest",
-    "nodemailer": "^7.0.13",
+    "nodemailer": "^10.1.2",
     "openai": "latest",
     "pg": "latest",
     "react": "latest",
