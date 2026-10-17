@@ -22,7 +22,10 @@ function safeDate(value:string){const parsed=new Date(value);return Number.isNaN
 
 export async function syncGmailConnection(connection: Connection) {
   if (!connection.encryptedTokens) return;
-  const auth = oauthClient(); auth.setCredentials(decrypt<GoogleTokens>(connection.encryptedTokens));
+  const tokens=decrypt<GoogleTokens>(connection.encryptedTokens);
+  const requiredScope='https://www.googleapis.com/auth/gmail.readonly';
+  if(tokens.scope&&!tokens.scope.split(/\s+/).includes(requiredScope))throw new Error('Gmail authorization is missing the gmail.readonly scope');
+  const auth = oauthClient(); auth.setCredentials(tokens);
   const gmail = google.gmail({ version: 'v1', auth });
   const settings = await getSettings(connection.userId);
   const initial=!connection.lastSyncedAt;
@@ -33,12 +36,12 @@ export async function syncGmailConnection(connection: Connection) {
   if(settings.excludeSocial)exclusions.push('-category:social');
   if(settings.excludeForums)exclusions.push('-category:forums');
   const list = await gmail.users.messages.list({ userId: 'me', q: `newer_than:${lookbackDays}d ${exclusions.join(' ')}`, maxResults });
-  const fetched = await Promise.all((list.data.messages || []).map(async ({ id }) => {
-    const { data } = await gmail.users.messages.get({ userId: 'me', id: id!, format: 'full' });
-    const headers = Object.fromEntries((data.payload?.headers || []).map(h => [h.name?.toLowerCase(), h.value]));
-    const internalTime=Number(data.internalDate);
-    return { id: id!, from: headers.from || 'Unknown sender', subject: headers.subject || '(no subject)', date: headers.date || (Number.isFinite(internalTime)?new Date(internalTime).toISOString():new Date().toISOString()), text: bodyText(data.payload) || data.snippet || '' };
-  }));
+  const references=list.data.messages||[];const fetched:Array<{id:string;from:string;subject:string;date:string;text:string}>=[];
+  for(let index=0;index<references.length;index+=5){
+    const batch=await Promise.all(references.slice(index,index+5).map(async({id})=>{const {data}=await gmail.users.messages.get({userId:'me',id:id!,format:'full'});const headers=Object.fromEntries((data.payload?.headers||[]).map(header=>[header.name?.toLowerCase(),header.value]));const internalTime=Number(data.internalDate);return{id:id!,from:headers.from||'Unknown sender',subject:headers.subject||'(no subject)',date:headers.date||(Number.isFinite(internalTime)?new Date(internalTime).toISOString():new Date().toISOString()),text:bodyText(data.payload)||data.snippet||''};}));
+    fetched.push(...batch);
+    if(index+5<references.length)await new Promise(resolve=>setTimeout(resolve,400));
+  }
   const known=new Set(await getSignalSourceIds(connection.userId,'gmail'));
   const senders=settings.blockedSenders.map(value=>value.toLowerCase()).filter(Boolean);
   const keywords=settings.blockedKeywords.map(value=>value.toLowerCase()).filter(Boolean);
@@ -63,7 +66,7 @@ async function runSyncUser(userId: string) {
   await logActivity(userId,{type:'sync',status:'info',title:'Sync started',detail:gmailConnections.length?`Checking ${gmailConnections.length} Gmail connection${gmailConnections.length===1?'':'s'}.`:'No Gmail connection is available.'}).catch(console.error);
   const results=await Promise.allSettled(gmailConnections.map(syncGmailConnection));
   const failures:string[]=[];let fetched=0;let processed=0;
-  for(let index=0;index<results.length;index++){const result=results[index];if(result.status==='fulfilled'){fetched+=result.value?.fetched||0;processed+=result.value?.processed||0;continue;}const connection=gmailConnections[index];const detail=result.reason instanceof Error?result.reason.message:'Unknown sync error';connection.status='error';connection.lastSyncAttemptAt=new Date().toISOString();connection.lastSyncError=/invalid_grant|unauthorized/i.test(detail)?'Gmail authorization expired. Disconnect and reconnect this account.':/AI provider|ChatGPT|OpenAI|Anthropic|model/i.test(detail)?'The selected AI provider failed. Check Intelligence settings, then retry.':'Gmail sync failed. Check the connection and try again.';await upsertConnection(connection);failures.push(`${connection.label}: ${connection.lastSyncError}`);console.error(result.reason);}
+  for(let index=0;index<results.length;index++){const result=results[index];if(result.status==='fulfilled'){fetched+=result.value?.fetched||0;processed+=result.value?.processed||0;continue;}const connection=gmailConnections[index];const detail=result.reason instanceof Error?result.reason.message:'Unknown sync error';connection.status='error';connection.lastSyncAttemptAt=new Date().toISOString();connection.lastSyncError=/insufficient authentication scopes|missing the gmail\.readonly scope/i.test(detail)?'Gmail permission is incomplete. Disconnect and reconnect Gmail, then approve read-only Gmail access.':/quota exceeded|rate limit|user-rate-limit/i.test(detail)?'Gmail temporarily limited this sync. Wait a few minutes, lower Messages per sync, and retry.':/invalid_grant|unauthorized/i.test(detail)?'Gmail authorization expired. Disconnect and reconnect this account.':/AI provider|ChatGPT|OpenAI|Anthropic|model/i.test(detail)?'The selected AI provider failed. Check Intelligence settings, then retry.':'Gmail sync failed. Check the connection and try again.';await upsertConnection(connection);failures.push(`${connection.label}: ${connection.lastSyncError}`);console.error(result.reason);}
   if(failures.length){await logActivity(userId,{type:'sync',status:'error',title:'Sync needs attention',detail:failures.join(' '),action:'Open Settings → Connected sources, correct the reported issue, then select Sync now.'}).catch(console.error);throw new Error(failures.join(' '));}
   await logActivity(userId,{type:'sync',status:'success',title:'Sync completed',detail:gmailConnections.length?`Fetched ${fetched} messages and processed ${processed} new messages. Previously processed and filtered messages were skipped.`:'Nothing was synced because Gmail is not connected.',action:gmailConnections.length?undefined:'Connect Gmail to begin.'}).catch(console.error);
   return{connections:gmailConnections.length,fetched,processed};

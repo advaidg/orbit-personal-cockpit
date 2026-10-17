@@ -6,10 +6,11 @@ import type { ActivityEvent, AiProvider, Brief, Connection, Signal, Task, User, 
 const pool = process.env.DATABASE_URL ? new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined }) : null;
 const memory = {
   users: new Map<string, User>([[demoUser.id, demoUser]]),
-  connections: [...demoConnections], signals: [...demoSignals], tasks: [...demoTasks], briefs: new Map<string, Brief>([[demoUser.id, demoBrief]]), settings: new Map<string, UserSettings>(), chatgpt: new Map<string, ChatGPTConnection>(), activity:[] as ActivityEvent[]
+  connections: [...demoConnections], signals: [...demoSignals], tasks: [...demoTasks], briefs: new Map<string, Brief>([[demoUser.id, demoBrief]]), settings: new Map<string, UserSettings>(), chatgpt: new Map<string, ChatGPTConnection>(), passwords: new Map<string,PasswordAuth>(), activity:[] as ActivityEvent[]
 };
 
 export type ChatGPTConnection = { userId:string; clientId?:string; hostId:string; email?:string; subject?:string; encryptedCredentials?:string; updatedAt?:string };
+export type PasswordAuth = { userId:string; salt:string; hash:string; updatedAt?:string };
 
 export async function initStore() {
   if (!pool) return;
@@ -35,6 +36,7 @@ export async function initStore() {
     ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS blocked_senders JSONB NOT NULL DEFAULT '[]';
     ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS blocked_keywords JSONB NOT NULL DEFAULT '[]';
     CREATE TABLE IF NOT EXISTS chatgpt_connections (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, client_id TEXT, host_id TEXT NOT NULL, email TEXT, subject TEXT, encrypted_credentials TEXT, updated_at TIMESTAMPTZ DEFAULT NOW());
+    CREATE TABLE IF NOT EXISTS owner_auth (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, password_salt TEXT NOT NULL, password_hash TEXT NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW());
     CREATE TABLE IF NOT EXISTS activity_events (id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id) ON DELETE CASCADE, type TEXT NOT NULL, status TEXT NOT NULL, title TEXT NOT NULL, detail TEXT, action TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
     CREATE INDEX IF NOT EXISTS activity_events_user_created_idx ON activity_events(user_id,created_at DESC);
   `);
@@ -60,9 +62,22 @@ export async function getUser(id: string) {
   if (!pool) return memory.users.get(id) || null;
   const { rows } = await pool.query('SELECT * FROM users WHERE id=$1', [id]); return rows[0] ? rowsTo.user(rows[0]) : null;
 }
+export async function getUserByEmail(email:string) {
+  const normalized=email.trim().toLowerCase();
+  if(!pool)return [...memory.users.values()].find(user=>user.email.toLowerCase()===normalized)||null;
+  const {rows}=await pool.query('SELECT * FROM users WHERE LOWER(email)=$1',[normalized]);return rows[0]?rowsTo.user(rows[0]):null;
+}
 export async function upsertUser(user: User) {
   if (!pool) { memory.users.set(user.id, user); return; }
   await pool.query('INSERT INTO users(id,email,name,avatar) VALUES($1,$2,$3,$4) ON CONFLICT(email) DO UPDATE SET name=$3,avatar=$4', [user.id, user.email, user.name, user.avatar]);
+}
+export async function getPasswordAuth(userId:string){
+  if(!pool)return memory.passwords.get(userId)||null;
+  const {rows}=await pool.query('SELECT * FROM owner_auth WHERE user_id=$1',[userId]);const row=rows[0];return row?{userId:row.user_id,salt:row.password_salt,hash:row.password_hash,updatedAt:row.updated_at?.toISOString?.()||row.updated_at}:null;
+}
+export async function savePasswordAuth(auth:PasswordAuth){
+  if(!pool){memory.passwords.set(auth.userId,{...auth,updatedAt:new Date().toISOString()});return;}
+  await pool.query('INSERT INTO owner_auth(user_id,password_salt,password_hash,updated_at) VALUES($1,$2,$3,NOW()) ON CONFLICT(user_id) DO UPDATE SET password_salt=$2,password_hash=$3,updated_at=NOW()',[auth.userId,auth.salt,auth.hash]);
 }
 export async function getConnections(userId: string) {
   if (!pool) return memory.connections.filter(x => x.userId === userId);
@@ -152,7 +167,7 @@ export async function deleteConnection(userId:string,id:string){
   const {rows}=await pool.query('DELETE FROM connections WHERE id=$1 AND user_id=$2 RETURNING *',[id,userId]);return rows[0]?rowsTo.connection(rows[0]):null;
 }
 export async function deleteUser(userId:string){
-  if(!pool){memory.users.delete(userId);memory.connections=memory.connections.filter(x=>x.userId!==userId);memory.signals=memory.signals.filter(x=>x.userId!==userId);memory.tasks=memory.tasks.filter(x=>x.userId!==userId);memory.briefs.delete(userId);memory.settings.delete(userId);memory.chatgpt.delete(userId);memory.activity=memory.activity.filter(x=>x.userId!==userId);return;}
+  if(!pool){memory.users.delete(userId);memory.connections=memory.connections.filter(x=>x.userId!==userId);memory.signals=memory.signals.filter(x=>x.userId!==userId);memory.tasks=memory.tasks.filter(x=>x.userId!==userId);memory.briefs.delete(userId);memory.settings.delete(userId);memory.chatgpt.delete(userId);memory.passwords.delete(userId);memory.activity=memory.activity.filter(x=>x.userId!==userId);return;}
   await pool.query('DELETE FROM users WHERE id=$1',[userId]);
 }
 export { pool };

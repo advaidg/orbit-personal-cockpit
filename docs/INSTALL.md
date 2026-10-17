@@ -40,7 +40,11 @@ Start with `AI_PROVIDER=rules`; it requires no AI account and transmits no messa
 
 ### 5. Verify
 
-Visit `/health` and confirm `ok:true` and `database:postgres`. Then open the home page, continue with Gmail, and run the first sync.
+Visit `/health` and confirm `ok:true` and `database:postgres`. Then open the home page and continue with Gmail once to establish the owner and connector.
+
+Open **Settings → Dashboard password** and set a password of at least 12 characters. Orbit stores only a salted scrypt hash in PostgreSQL. From then on, a new browser can unlock the dashboard with that password; Gmail sign-in is no longer required for each browser. Keep Google OAuth available as the Gmail reconnection and recovery path.
+
+If Activity reports that Gmail permission is incomplete, disconnect Gmail and connect it again, approving the requested read-only Gmail permission. This one-time reconnection is required when upgrading an older credential that was issued without the Gmail scope.
 
 In **Settings → Sync schedule & inbox rules**, choose how far back the first import should read, cap the number of messages, exclude Gmail Promotions/Social/Forums, and add sender or keyword filters. Auto-sync can be paused without disconnecting Gmail; **Sync now** remains available. If you later change AI providers, use the explicitly confirmed **Clear & re-sync** operation to rebuild normalized signals, the brief, and email-generated tasks while preserving connections and manual tasks.
 

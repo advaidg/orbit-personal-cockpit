@@ -10,6 +10,7 @@ Orbit is designed around data minimization.
 - Tasks and their completion state.
 - The latest generated brief.
 - The latest 200 operational activity events: timestamps, counts, selected provider, outcome, and recovery guidance.
+- An optional installation-local dashboard password as a salted scrypt hash; the plaintext password is never stored.
 
 ## What is not stored
 

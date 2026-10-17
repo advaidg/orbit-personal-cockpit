@@ -97,6 +97,6 @@ export interface DashboardData {
   connections: Connection[];
   settings: UserSettings;
   activity: ActivityEvent[];
-  system: { storage: 'postgres' | 'memory'; persistent: boolean; aiProviders: Array<{ id: AiProvider; label: string; configured: boolean; external: boolean }>; chatgpt:{connected:boolean;email?:string;hostId?:string} };
+  system: { storage: 'postgres' | 'memory'; persistent: boolean; passwordLoginConfigured:boolean; passwordRecoveryAvailable:boolean; aiProviders: Array<{ id: AiProvider; label: string; configured: boolean; external: boolean }>; chatgpt:{connected:boolean;email?:string;hostId?:string} };
   stats: { needsYou: number; waitingOn: number; cleared: number; noiseFiltered: number };
 }

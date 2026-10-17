@@ -1,9 +1,11 @@
 import crypto from 'node:crypto';
+import { promisify } from 'node:util';
 
 const encryptionSecret = process.env.APP_ENCRYPTION_KEY || 'orbit-local-encryption-key-change-me';
 const sessionSecret = process.env.SESSION_SECRET || 'orbit-local-session-key-change-me';
 const encryptionKey = crypto.createHash('sha256').update(encryptionSecret).digest();
 const sessionKey = crypto.createHash('sha256').update(sessionSecret).digest();
+const scrypt = promisify(crypto.scrypt);
 
 export function encrypt(value: unknown) {
   const iv = crypto.randomBytes(12);
@@ -40,5 +42,20 @@ export function verifySession(value?: string) {
     return parsed.userId;
   } catch {
     return null;
+  }
+}
+
+export async function hashPassword(password: string, salt = crypto.randomBytes(16).toString('base64url')) {
+  const hash = (await scrypt(password, salt, 64)) as Buffer;
+  return { salt, hash: hash.toString('base64url') };
+}
+
+export async function verifyPassword(password: string, salt: string, encodedHash: string) {
+  try {
+    const actual = (await scrypt(password, salt, 64)) as Buffer;
+    const expected = Buffer.from(encodedHash, 'base64url');
+    return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+  } catch {
+    return false;
   }
 }

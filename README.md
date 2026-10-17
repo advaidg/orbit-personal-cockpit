@@ -29,6 +29,7 @@ Most dashboards show more data. Orbit makes fewer demands on your attention.
 - Responsive personal cockpit with AI daily brief
 - Multiple Gmail account connection model
 - Gmail OAuth with read-only scope and encrypted refresh tokens
+- Installation-local dashboard password for returning browsers; Gmail remains a connector and recovery path
 - Owner-controlled auto-sync interval, first-sync history/limits, Gmail category exclusions, and sender/keyword filters; `SYNC_CRON` controls the scheduler wake-up
 - AI classification into action, waiting, calendar, money, travel, people, and noise
 - OpenAI API, Anthropic API, OpenAI-compatible models, and eligible ChatGPT plan usage with a private rules-only mode
@@ -76,6 +77,8 @@ Then populate `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`.
 
 Railway detects the root `Dockerfile`; `/health` is configured as the deployment health check.
 
+On the first visit, use Gmail once to establish the owner and connector. Then open **Settings → Dashboard password** and create a password of at least 12 characters. New browsers can unlock Orbit with that local password without repeating Google sign-in; Google OAuth remains available for reconnecting Gmail or recovery.
+
 Complete instructions are in [docs/INSTALL.md](docs/INSTALL.md). Every installation exposes public `/privacy`, `/terms`, and `/security` pages for Google OAuth configuration while keeping the dashboard itself owner-only.
 
 For a public one-click template, follow [the template publishing checklist](docs/RAILWAY_TEMPLATE.md) after the GitHub repository is public. Railway assigns the final template code, which can then be added as a Deploy button here.
@@ -106,6 +109,7 @@ See [AI providers](docs/AI_PROVIDERS.md), [ChatGPT plan setup](docs/CHATGPT_SUBS
 - `APP_ENCRYPTION_KEY` and `SESSION_SECRET` must be unique production secrets.
 - API credentials never ship to the browser.
 - `OWNER_EMAIL` makes the default deployment single-tenant and rejects other Google identities.
+- The optional dashboard password is stored only as a salted scrypt hash; plaintext is never persisted.
 - Account export omits encrypted credentials; disconnect and deletion attempt provider-token revocation.
 - Raw email bodies are processed transiently and are never stored in PostgreSQL.
 - Normalized signals expire after `SIGNAL_RETENTION_DAYS` (30 by default).
