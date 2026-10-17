@@ -70,7 +70,8 @@ app.get('/auth/google/callback', async (req, res, next) => {
     const googleUser: User = { id: data.id!, email: data.email!, name: data.name || data.email!.split('@')[0], avatar: data.picture || undefined, createdAt: new Date().toISOString() };
     const user = linkedUser || existingUser || googleUser;
     if (!linkedUser&&!existingUser) await upsertUser(user);
-    const connection: Connection = { id: crypto.createHash('sha1').update(`gmail:${user.id}:${googleUser.email}`).digest('hex'), userId: user.id, provider: 'gmail', label: linkedUser ? `Gmail · ${googleUser.email}` : 'Gmail', accountEmail: googleUser.email, status: 'connected', encryptedTokens: encrypt(tokens) };
+    const priorConnection=(await getConnections(user.id)).find(connection=>connection.provider==='gmail'&&connection.accountEmail?.toLowerCase()===googleUser.email.toLowerCase());
+    const connection: Connection = { id: crypto.createHash('sha1').update(`gmail:${user.id}:${googleUser.email}`).digest('hex'), userId: user.id, provider: 'gmail', label: priorConnection?.label||(linkedUser ? `Gmail · ${googleUser.email}` : 'Gmail'), accountEmail: googleUser.email, status: 'connected', lastSyncedAt:priorConnection?.lastSyncedAt, encryptedTokens: encrypt(tokens) };
     await upsertConnection(connection);
     await logActivity(user.id,{type:'connection',status:'success',title:'Gmail connected',detail:`${googleUser.email} is ready to sync.`}).catch(console.error);
     res.cookie(cookieNames.session, signSession(user.id), { ...cookieBase, maxAge: 30 * 86400_000 });
