@@ -6,6 +6,7 @@ import { pactsRouter } from '../server/api/pacts.js';
 import { federationRouter } from '../server/api/federation.js';
 import { channelsRouter } from '../server/api/channels.js';
 import { sendFailure } from '../server/api/http.js';
+import { setupRouter } from '../server/api/setup.js';
 
 export interface TestServer {
   url: string;
@@ -22,6 +23,7 @@ export async function startApp(ownerId: string): Promise<TestServer> {
   app.use('/api/pacts', owner, pactsRouter);
   app.use('/api/federation', owner, federationRouter);
   app.use('/api/channels', owner, channelsRouter);
+  app.use('/api/setup', owner, setupRouter);
   app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     try { sendFailure(res, error); } catch { res.status(500).json({ error: 'unexpected' }); }
   });

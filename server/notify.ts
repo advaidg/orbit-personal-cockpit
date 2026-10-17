@@ -5,6 +5,8 @@ import { redact, ActionableError } from './diagnostics.js';
 import { providerLimiter } from './providerLimits.js';
 import { getUser } from './store.js';
 import { getAgentSettings } from './agent/settings.js';
+import { setting } from './installationConfig.js';
+import { getBotToken } from './telegram/api.js';
 import type { DeliveryResult, NotifierGateway, NotifyChannel } from './agent/services.js';
 import type { OrbitNotification } from './agent/types.js';
 
@@ -18,15 +20,15 @@ export interface NotifierDeps {
 }
 
 async function defaultSendEmail(to: string, subject: string, text: string): Promise<void> {
-  const url = process.env.SMTP_URL;
-  if (!url) throw new ActionableError('Email digests are not configured.', { action: 'Set SMTP_URL (and optionally DIGEST_FROM) on this installation.', code: 'smtp_missing' });
+  const url = setting('SMTP_URL');
+  if (!url) throw new ActionableError('Email digests are not configured.', { action: 'Open Connections → Setup and add your email server.', code: 'smtp_missing' });
   const transport = nodemailer.createTransport(url);
-  await providerLimiter.run('smtp', () => transport.sendMail({ from: process.env.DIGEST_FROM || process.env.OWNER_EMAIL, to, subject, text }));
+  await providerLimiter.run('smtp', () => transport.sendMail({ from: setting('DIGEST_FROM') || process.env.OWNER_EMAIL, to, subject, text }));
 }
 
 async function defaultSendTelegram(chatId: string, text: string): Promise<void> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) throw new ActionableError('Telegram is not configured.', { action: 'Set TELEGRAM_BOT_TOKEN on this installation, then add your chat ID in Connections.', code: 'telegram_missing' });
+  const token = getBotToken();
+  if (!token) throw new ActionableError('Telegram is not set up.', { action: 'Open Connections → Setup and connect your Telegram bot.', code: 'telegram_missing' });
   const response = await providerLimiter.run('telegram', () => fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: chatId, text: text.slice(0, 3900), disable_web_page_preview: true }) }));
   if (!response.ok) throw new Error(`Telegram rejected the message (${response.status})`);
 }
@@ -52,7 +54,7 @@ export function createNotifier(deps: Partial<NotifierDeps> = {}): NotifierGatewa
       for (const channel of wanted.filter((value) => value === 'email' || value === 'telegram')) {
         try {
           if (channel === 'email') {
-            const to = process.env.DIGEST_TO || (await getUser(userId))?.email;
+            const to = setting('DIGEST_TO') || (await getUser(userId))?.email;
             if (!to) throw new ActionableError('No address is available for the digest.', { action: 'Set DIGEST_TO or OWNER_EMAIL.' });
             await sendEmail(to, `Orbit: ${message.title}`, `${message.body}\n\n— Orbit`);
             results.push({ channel, ok: true, detail: 'Sent by email.' });

@@ -341,3 +341,18 @@ select.btn { padding-right: 8px; }
   .peer-actions { justify-content: flex-start; max-width: none; }
 }
 @media (prefers-reduced-motion: reduce) { .pact-row { transition: none; } }
+
+/* ── Setup ─────────────────────────────────────────────────────────────── */
+.setup-stack { display: grid; gap: 0; margin: 6px 0 14px; }
+.setup-body { display: grid; gap: 12px; padding: 18px 0; border-top: 1px solid #262d22; }
+.setup-body:first-child { border-top: 0; }
+.setup-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.setup-head h4 { margin: 0 0 4px; font-size: 14.5px; display: flex; align-items: center; gap: 7px; }
+.setup-head p { margin: 0; color: var(--text-soft, #a3ac98); font-size: 12.5px; line-height: 1.5; max-width: 62ch; }
+.setup-steps { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: 13px; line-height: 1.5; color: var(--text-soft, #a3ac98); }
+.setup-steps b { color: var(--text, #ecf0e4); }
+.setup-steps code, .setup-head code, .setup-body code { font: 500 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--acid, #c8f060); background: #10130f; padding: 1px 6px; border-radius: 5px; }
+.setup-steps .btn { margin-left: 8px; }
+.setup-form { display: grid; gap: 12px; max-width: 520px; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 720px) { .setup-head { flex-direction: column; } .field-row { grid-template-columns: 1fr; } }

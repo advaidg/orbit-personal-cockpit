@@ -63,3 +63,17 @@ export interface SharedPact { token: string; url: string; message: string }
 export interface FederationPeer { id: string; url: string; name: string; fingerprint: string; status: 'pending_out' | 'pending_in' | 'trusted' | 'blocked'; lastSeenAt?: string }
 export type FederationInfo = { enabled: false; reason: string } | { enabled: true; url: string; name: string; fingerprint: string; peers: FederationPeer[] };
 export interface TelegramStatus { configured: boolean; inbound: boolean; linked: boolean; bot?: string }
+
+export type SetupSource = 'ui' | 'env' | 'unset';
+export interface SetupStatus {
+  persistent: boolean;
+  telegram: { configured: boolean; source: SetupSource; linked: boolean; bot?: string; inbound: boolean };
+  email: { configured: boolean; source: SetupSource; host?: string; port?: string; secure?: boolean; user?: string; from?: string; to?: string };
+  ai: {
+    active: string;
+    openai: { configured: boolean; source: SetupSource; model?: string };
+    anthropic: { configured: boolean; source: SetupSource; model?: string };
+    compatible: { configured: boolean; source: SetupSource; baseUrl?: string; model?: string };
+  };
+  federation: { enabled: boolean; source: SetupSource; address?: string; canEnable: boolean; blocker?: string };
+}

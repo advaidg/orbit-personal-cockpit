@@ -17,6 +17,7 @@ class FakeTelegram implements TelegramApi {
   async answerCallback(_id: string, text?: string) { this.answers.push(text ?? ''); }
   async getUpdates() { return []; }
   async botUsername() { return 'orbit_test_bot'; }
+  async verifyToken() { return { username: 'orbit_test_bot' }; }
   last() { return this.sent.at(-1)!; }
 }
 

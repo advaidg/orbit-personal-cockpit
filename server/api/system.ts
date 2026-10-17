@@ -1,4 +1,6 @@
 import express from 'express';
+import { setting } from '../installationConfig.js';
+import { getBotToken } from '../telegram/api.js';
 import { decrypt } from '../crypto.js';
 import { diagnose, redact } from '../diagnostics.js';
 import { cancelJob, getJob, listJobs } from '../jobs.js';
@@ -75,7 +77,7 @@ systemRouter.get('/diagnostics', handle(async (_req, res) => {
     queue: { queued: jobs.filter((job) => job.status === 'queued').length, running: jobs.filter((job) => job.status === 'running').length, failed24h: recent.filter((job) => job.status === 'failed').length, succeeded24h: recent.filter((job) => job.status === 'succeeded').length, recentFailures: recent.filter((job) => job.status === 'failed').slice(0, 5).map((job) => ({ id: job.id, kind: job.kind, error: job.error, at: job.finishedAt })) },
     scheduler: { lastTickAt: lastTickAt()?.toISOString() ?? null },
     agent: { enabled: limits.enabled, paused: agentSettings.paused, automationsKilled: agentSettings.automationsKilled },
-    environment: { node: process.version, production: process.env.NODE_ENV === 'production', smtpConfigured: !!process.env.SMTP_URL, telegramConfigured: !!process.env.TELEGRAM_BOT_TOKEN }
+    environment: { node: process.version, production: process.env.NODE_ENV === 'production', smtpConfigured: !!setting('SMTP_URL'), telegramConfigured: !!getBotToken() }
   });
 }));
 

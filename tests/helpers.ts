@@ -4,6 +4,7 @@ import { initStore, upsertUser } from '../server/store.js';
 import { resetMemoryCollections } from '../server/collection.js';
 import { resetMemoryJobs } from '../server/jobs.js';
 import { COLLECTION_TABLES } from '../server/migrations.js';
+import { resetInstallationConfig } from '../server/installationConfig.js';
 import type { User } from '../server/types.js';
 
 let initialized = false;
@@ -27,6 +28,7 @@ export async function resetStorage(): Promise<void> {
   await ensureInitialized();
   resetMemoryCollections();
   resetMemoryJobs();
+  resetInstallationConfig();
   if (!pool) return;
   await pool.query(`TRUNCATE jobs, ${COLLECTION_TABLES.join(', ')}`);
 }

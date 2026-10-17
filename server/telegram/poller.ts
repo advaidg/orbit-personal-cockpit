@@ -1,27 +1,43 @@
 import { logSafe } from '../diagnostics.js';
 import { pactLimits } from '../pacts/config.js';
 import { listPending } from '../agent/proposals.js';
-import { realTelegramApi, telegramApi } from './api.js';
+import { getBotToken, realTelegramApi, telegramApi } from './api.js';
+import { onSettingChange } from '../installationConfig.js';
 import { handleUpdate, sendProposalCards } from './bot.js';
 import { boundChats } from './link.js';
 
 const POLL_SECONDS = 25;
 const MAX_BACKOFF_MS = 60_000;
 
-export const telegramConfigured = (): boolean => !!process.env.TELEGRAM_BOT_TOKEN;
+export const telegramConfigured = (): boolean => !!getBotToken();
 
 /**
  * Long-polls Telegram, so no public webhook is needed — it works behind any host. Only one instance may poll
- * per bot token; a second one backs off quietly.
+ * per bot token; a second one backs off quietly. The loop re-reads the token every round, so saving, replacing
+ * or removing the bot in Setup takes effect within a moment, with no redeploy.
  */
 export function startTelegramBot(): { stop: () => void } {
-  if (!telegramConfigured() || !pactLimits().telegramInbound) return { stop: () => undefined };
-  const controller = new AbortController();
+  if (!pactLimits().telegramInbound) return { stop: () => undefined };
+  let controller = new AbortController();
   let offset = 0;
   let delay = 1_000;
   let stopped = false;
+  let lastToken: string | undefined;
+  const unsubscribe = onSettingChange((key) => {
+    if (key === 'TELEGRAM_BOT_TOKEN') controller.abort();
+  });
   void (async () => {
     while (!stopped) {
+      const token = getBotToken();
+      if (!token) {
+        await new Promise((resolve) => setTimeout(resolve, 3_000));
+        continue;
+      }
+      if (token !== lastToken) {
+        lastToken = token;
+        offset = 0;
+      }
+      controller = new AbortController();
       try {
         const updates = await telegramApi().getUpdates(offset, POLL_SECONDS, controller.signal);
         delay = 1_000;
@@ -31,6 +47,7 @@ export function startTelegramBot(): { stop: () => void } {
         }
       } catch (error) {
         if (stopped) break;
+        if (controller.signal.aborted) continue; // the token changed; start over with the new one
         const status = (error as { status?: number }).status;
         logSafe(status === 409 ? 'telegram polling conflict (another instance polls this bot)' : 'telegram polling', error);
         await new Promise((resolve) => setTimeout(resolve, delay));
@@ -38,7 +55,7 @@ export function startTelegramBot(): { stop: () => void } {
       }
     }
   })();
-  return { stop: () => { stopped = true; controller.abort(); } };
+  return { stop: () => { stopped = true; unsubscribe(); controller.abort(); } };
 }
 
 /** Pushes newly pending proposals to the owner's linked chat, once each. Called from the scheduler. */

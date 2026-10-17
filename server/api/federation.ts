@@ -15,14 +15,14 @@ const compact = (value: string) => value.replace(/\s+/g, '').toLowerCase();
 federationRouter.get('/', handle(async (_req, res) => {
   const userId = ownerId(res);
   const enabled = pactLimits().federationEnabled && !!process.env.OWNER_EMAIL;
-  if (!enabled) return res.json({ enabled: false, reason: pactLimits().federationEnabled ? 'Set OWNER_EMAIL so peers can find you.' : 'Set FEDERATION_ENABLED=true and redeploy to let Orbit installations share pacts.' });
+  if (!enabled) return res.json({ enabled: false, reason: pactLimits().federationEnabled ? 'Set OWNER_EMAIL so peers can find you.' : 'Turn it on in Connections → Setup to let Orbit installations share pacts.' });
   const identity = await getIdentity(userId);
   const owner = await getUser(userId);
   res.json({ enabled: true, url: publicBaseUrl(), name: owner?.name ?? '', fingerprint: fingerprintOf(identity.publicKey), peers: (await listPeers(userId)).map(({ publicKey, ...peer }) => peer) });
 }));
 
 function requireEnabled(): void {
-  if (!pactLimits().federationEnabled) throw new ActionableError('Federation is turned off on this installation.', { action: 'Set FEDERATION_ENABLED=true and redeploy.', code: 'federation_disabled' });
+  if (!pactLimits().federationEnabled) throw new ActionableError('Federation is turned off on this installation.', { action: 'Turn it on in Connections → Setup.', code: 'federation_disabled' });
 }
 
 federationRouter.post('/peers', handle(async (req, res) => {

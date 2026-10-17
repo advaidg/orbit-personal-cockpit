@@ -27,8 +27,9 @@ Configure these Orbit variables:
 | `SIGNAL_RETENTION_DAYS` | `30` |
 | `DEMO_MODE` | `false` |
 | `PACTS_ENABLED` | `true` |
-| `TELEGRAM_BOT_TOKEN` | optional prompt: chat with Orbit from Telegram |
-| `FEDERATION_ENABLED` | optional prompt (`false` by default): share pacts with friends' Orbits |
+
+Telegram, email, AI keys and Orbit-to-Orbit sharing are configured from the app after deploy (Connections → Set up Orbit), so the template does not need to ask for them.
+
 
 After deploying the project successfully:
 

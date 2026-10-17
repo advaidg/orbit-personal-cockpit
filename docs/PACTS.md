@@ -30,7 +30,7 @@ Only the promise itself: your display name, what, when, and the page’s own sta
 
 ## Telegram
 
-Set `TELEGRAM_BOT_TOKEN` (create a bot with [@BotFather](https://t.me/BotFather)), redeploy, then open **Connections → Link Telegram chat** and send the one-time code to your bot.
+Open **Connections → Set up Orbit → Telegram**. Create a bot with [@BotFather](https://t.me/BotFather), paste its token (Orbit checks it with Telegram and stores it encrypted), then tap **Link my chat** and press *Start* in Telegram. No redeploy and no webhook.
 
 Orbit long-polls Telegram, so you do **not** need a public webhook. Only one running instance may poll a given bot.
 
@@ -41,12 +41,12 @@ Orbit long-polls Telegram, so you do **not** need a public webhook. Only one run
 
 ## Orbit to Orbit (optional)
 
-Friends who each run their own Orbit can exchange pacts directly. It is **off** by default (`FEDERATION_ENABLED=false`) because it adds two public endpoints:
+Friends who each run their own Orbit can exchange pacts directly. It is **off** by default because it adds two public endpoints. Turn it on with one switch in **Connections → Set up Orbit → Share pacts** (or `FEDERATION_ENABLED=true`):
 
 - `GET /.well-known/orbit-pacts` — your public key and fingerprint.
 - `POST /federation/inbox` — signed messages from installations you trust.
 
-Requirements: `FEDERATION_ENABLED=true`, `OWNER_EMAIL`, and an https `APP_URL`.
+Requirements: `OWNER_EMAIL` and an https `APP_URL` (the switch explains what is missing).
 
 **Trust is explicit and two-way.**
 
@@ -63,7 +63,7 @@ How messages are protected: every message is signed with an Ed25519 key (the pri
 | `PACTS_ENABLED` | `true` | Turns pacts, links and the public page on or off. |
 | `PACT_LINK_TTL_DAYS` | `45` | How long a link works. |
 | `PACT_MAX_OPEN` | `500` | Most open pacts at once. |
-| `TELEGRAM_BOT_TOKEN` | — | Enables Telegram (outbound and chat). |
+| `TELEGRAM_BOT_TOKEN` | — | Optional: the same as Setup → Telegram. A value saved in Setup wins. |
 | `TELEGRAM_INBOUND_ENABLED` | `true` | Set `false` to keep Telegram one-way. |
-| `FEDERATION_ENABLED` | `false` | Opt in to Orbit-to-Orbit sharing. |
+| `FEDERATION_ENABLED` | `false` | Optional: the same as the Setup switch. A value set in Setup wins. |
 | `ORBIT_REPO_URL` | this repo | Where “run your own” on pact pages points. |

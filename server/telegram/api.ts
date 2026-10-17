@@ -1,4 +1,8 @@
+import { setting } from '../installationConfig.js';
 import { providerLimiter } from '../providerLimits.js';
+
+/** The bot token in force: the one saved in Setup, otherwise TELEGRAM_BOT_TOKEN. */
+export const getBotToken = (): string | undefined => setting('TELEGRAM_BOT_TOKEN');
 
 export interface Button {
   text: string;
@@ -18,20 +22,22 @@ export interface TelegramApi {
   answerCallback(callbackId: string, text?: string): Promise<void>;
   getUpdates(offset: number, timeoutSeconds: number, signal?: AbortSignal): Promise<TelegramUpdate[]>;
   botUsername(): Promise<string | undefined>;
+  /** Checks a token with Telegram and, if the bot has a webhook, removes it so polling can work. */
+  verifyToken(token: string): Promise<{ username: string }>;
 }
 
 const TEXT_LIMIT = 3800;
 
-async function call<T>(method: string, payload: object, signal?: AbortSignal): Promise<T> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) throw new Error('TELEGRAM_BOT_TOKEN is not set');
+async function call<T>(method: string, payload: object, signal?: AbortSignal, tokenOverride?: string): Promise<T> {
+  const token = tokenOverride ?? getBotToken();
+  if (!token) throw new Error('No Telegram bot token is set');
   const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal });
   const data = (await response.json().catch(() => ({}))) as { ok?: boolean; result?: T; description?: string; error_code?: number };
   if (!response.ok || !data.ok) throw Object.assign(new Error(`Telegram ${method} failed (${data.error_code ?? response.status})`), { status: data.error_code ?? response.status });
   return data.result as T;
 }
 
-let cachedUsername: string | undefined;
+let cachedUsername: { token: string; name?: string } | undefined;
 
 export const realTelegramApi: TelegramApi = {
   async send(chatId, text, buttons) {
@@ -45,9 +51,18 @@ export const realTelegramApi: TelegramApi = {
   },
   getUpdates: (offset, timeoutSeconds, signal) => call('getUpdates', { offset, timeout: timeoutSeconds, allowed_updates: ['message', 'callback_query'] }, signal),
   async botUsername() {
-    if (cachedUsername) return cachedUsername;
-    cachedUsername = (await call<{ username?: string }>('getMe', {}).catch(() => ({}) as { username?: string })).username;
-    return cachedUsername;
+    const token = getBotToken();
+    if (!token) return undefined;
+    if (cachedUsername?.token === token && cachedUsername.name) return cachedUsername.name;
+    const me = await call<{ username?: string }>('getMe', {}).catch(() => ({}) as { username?: string });
+    cachedUsername = { token, name: me.username };
+    return me.username;
+  },
+  async verifyToken(token) {
+    const me = await call<{ username?: string }>('getMe', {}, undefined, token);
+    if (!me.username) throw new Error('Telegram did not return a bot username');
+    await call('deleteWebhook', { drop_pending_updates: false }, undefined, token);
+    return { username: me.username };
   }
 };
 

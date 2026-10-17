@@ -25,7 +25,10 @@ const BASE_TABLES = [
 /** Added in migration 4: pacts shared with other people, federation peers, and chat-channel links. */
 const PACT_TABLES = ['pacts', 'federation', 'channel_links'] as const;
 
-export const COLLECTION_TABLES = [...BASE_TABLES, ...PACT_TABLES] as const;
+/** Added in migration 5: credentials and switches the owner sets from the Setup screen, encrypted at rest. */
+const CONFIG_TABLES = ['installation_config'] as const;
+
+export const COLLECTION_TABLES = [...BASE_TABLES, ...PACT_TABLES, ...CONFIG_TABLES] as const;
 
 export type CollectionTable = (typeof COLLECTION_TABLES)[number];
 
@@ -117,6 +120,11 @@ export const migrations: Migration[] = [
     version: 4,
     name: 'pacts, federation and channel links',
     sql: PACT_TABLES.map(collectionDdl).join('\n')
+  },
+  {
+    version: 5,
+    name: 'installation config set from the UI',
+    sql: CONFIG_TABLES.map(collectionDdl).join('\n')
   }
 ];
 

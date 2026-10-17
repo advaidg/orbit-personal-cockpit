@@ -2,6 +2,7 @@ import type express from 'express';
 import { z } from 'zod';
 import { ActionableError } from '../diagnostics.js';
 import { agentLimits } from '../agent/config.js';
+import { demoUser } from '../demo.js';
 
 export const ownerId = (res: express.Response): string => res.locals.userId as string;
 
@@ -39,4 +40,13 @@ export function handle(fn: (req: express.Request, res: express.Response) => Prom
 export const requireAgentEnabled: express.RequestHandler = (req, res, next) => {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || agentLimits().enabled) return next();
   res.status(403).json({ error: 'The agent is disabled on this installation.', action: 'Set AGENT_ENABLED=true and redeploy to turn it on.', code: 'agent_disabled' });
+};
+
+/**
+ * Setup changes things that belong to the whole installation (bot tokens, API keys, mail server). The sample
+ * workspace is not an owner, so it can never reach them, whatever DEMO_MODE says.
+ */
+export const forbidDemo: express.RequestHandler = (_req, res, next) => {
+  if (res.locals.userId === demoUser.id) return void res.status(403).json({ error: 'Setup is not available in the demo workspace.', action: 'Sign in as the installation owner.', code: 'demo_mode' });
+  next();
 };

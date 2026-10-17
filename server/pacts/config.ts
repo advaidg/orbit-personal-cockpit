@@ -1,3 +1,5 @@
+import { setting } from '../installationConfig.js';
+
 type Env = Record<string, string | undefined>;
 
 export interface PactLimits {
@@ -17,7 +19,7 @@ export function pactLimits(env: Env = process.env): PactLimits {
   return {
     enabled: flag(env.PACTS_ENABLED, true),
     // Federation exposes public endpoints, so it is opt-in.
-    federationEnabled: flag(env.FEDERATION_ENABLED, false),
+    federationEnabled: flag(setting('FEDERATION_ENABLED', env), false),
     telegramInbound: flag(env.TELEGRAM_INBOUND_ENABLED, true),
     linkTtlDays: Number.isFinite(ttl) && ttl > 0 ? Math.min(365, Math.floor(ttl)) : 45,
     maxOpenPacts: Number.isFinite(cap) && cap > 0 ? Math.min(5000, Math.floor(cap)) : 500,

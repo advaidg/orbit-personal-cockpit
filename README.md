@@ -9,7 +9,7 @@
 
 [![MIT](https://img.shields.io/badge/license-MIT-c8f060?style=flat-square)](LICENSE)
 [![Self-hosted](https://img.shields.io/badge/self--hosted-your%20cloud%2C%20your%20data-1d1a16?style=flat-square)](#install-it-in-your-own-cloud)
-[![Tests](https://img.shields.io/badge/tests-246%20passing-2f6b4f?style=flat-square)](#how-its-built)
+[![Tests](https://img.shields.io/badge/tests-260%20passing-2f6b4f?style=flat-square)](#how-its-built)
 [![No sending](https://img.shields.io/badge/email%20sending-impossible%20by%20design-b4411f?style=flat-square)](#safety-you-can-verify)
 
 <p align="center">
@@ -116,7 +116,7 @@ Pick one. Every path ends with **you** owning the server and the data.
 
 1. Fork or import this repository into Railway as a new project.
 2. Add a **PostgreSQL** service (Railway wires `DATABASE_URL` for you) and generate a public domain.
-3. Run `npm run secrets` locally and paste the two values it prints; set `APP_URL` to your Railway domain and `OWNER_EMAIL` to **your** Google address (the only account allowed in).
+3. Run `npm run secrets` locally and paste the two values it prints; set `APP_URL` to your Railway domain and `OWNER_EMAIL` to **your** Google address (the only account allowed in). These few settings are all the setup that lives outside the app.
 4. Create a Google OAuth *Web application*, enable the Gmail API, and add `https://YOUR-DOMAIN/auth/google/callback` as a redirect URI. Paste the client ID and secret into Railway.
 5. Open your domain, sign in with Google once, then set a dashboard password in **Settings**.
 
@@ -141,15 +141,19 @@ cp .env.example .env && docker compose up --build   # → http://localhost:3000
 
 Step-by-step with screenshots-worth of detail: **[docs/INSTALL.md](docs/INSTALL.md)**.
 
-### Then turn on the good parts
+### Then turn on the good parts — all from the UI
 
-| Want | Set |
-| --- | --- |
-| Gmail reply drafts | Connections → *Read plus create drafts* |
-| Chat from your phone | `TELEGRAM_BOT_TOKEN` (make a bot with @BotFather), then Connections → *Link Telegram chat* |
-| Share pacts with friends who run Orbit | `FEDERATION_ENABLED=true` (needs `OWNER_EMAIL` and an https `APP_URL`) |
-| A smarter brain | `AI_PROVIDER=openai\|anthropic\|openai-compatible` plus a key. Or leave `rules` for fully private |
-| Email digests | `SMTP_URL` |
+Open **Connections → Set up Orbit**. Everything below is a form in your browser: no environment variables, no redeploy, and changes apply immediately.
+
+| Want | Where | What you do |
+| --- | --- | --- |
+| Chat from your phone | Setup → Telegram | Open @BotFather, make a bot, paste the token, tap **Link my chat** and press Start. Orbit watches for it and says when you are connected. |
+| Email digests | Setup → Email | Pick Gmail / Outlook / Other, enter the details. Orbit signs in to check before saving. |
+| A smarter brain | Setup → Intelligence | Paste an OpenAI or Anthropic key (verified before saving), or point at a local model (Ollama, LM Studio…). Or stay on private rules. |
+| Share pacts with friends who run Orbit | Setup → Share pacts | One switch. |
+| Gmail reply drafts | Connections → Gmail access | Choose *Read plus create drafts*. |
+
+Secrets you enter there are encrypted with your `APP_ENCRYPTION_KEY` before they are stored, and are never shown again. What stays in your host's variables is only what is needed *before* anyone can sign in: your domain, Google client ID and secret, the two security secrets, and the database.
 
 ## How it's built
 
@@ -169,7 +173,7 @@ Telegram / Ask Orbit / Automations ──┴─▶ proposals ──▶ policy �
 - **Durable job queue** on Postgres (`FOR UPDATE SKIP LOCKED`, backoff, idempotency keys, stale-job recovery, cancel).
 - **Versioned migrations** with an advisory lock; legacy installs adopt them automatically.
 - **Policy engine** is a pure function over risk classes (read · local · notify · draft · calendar · send · delete · financial · shell · skill). Env sets the ceiling; the UI can only be stricter.
-- **Two storage modes with identical behavior**: in-memory for demos, Postgres for real use. The same 246 tests run against both.
+- **Two storage modes with identical behavior**: in-memory for demos, Postgres for real use. The same 260 tests run against both.
 - **Small surface**: 116 KB gzipped JS, no telemetry, no third-party scripts.
 
 ```bash
@@ -180,7 +184,7 @@ npm run check     # strict type-check: app, server, tests
 
 ## Status — read this before you rely on it
 
-Orbit is **early software, built in the open**. The core is solid: 246 automated tests covering the approval flow, policy, idempotency, retries, prompt-injection handling, cross-account isolation, pact links, federation signing/replay/forgery, and Telegram linking. But the integrations that need *your* accounts (real Google OAuth, a real Telegram bot, a second real Orbit install) are exercised in CI through fakes. **Try it on a throwaway Gmail first and [open an issue](https://github.com/advaidg/orbit-personal-cockpit/issues) when something is off.**
+Orbit is **early software, built in the open**. The core is solid: 260 automated tests covering the approval flow, policy, idempotency, retries, prompt-injection handling, cross-account isolation, pact links, federation signing/replay/forgery, and Telegram linking. But the integrations that need *your* accounts (real Google OAuth, a real Telegram bot, a second real Orbit install) are exercised in CI through fakes. **Try it on a throwaway Gmail first and [open an issue](https://github.com/advaidg/orbit-personal-cockpit/issues) when something is off.**
 
 Known limits, stated plainly:
 

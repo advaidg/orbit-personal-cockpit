@@ -92,9 +92,9 @@ docker compose -f docker-compose.vps.yml up -d --build
 
 Caddy obtains and renews the HTTPS certificate on its own, and only ports 80 and 443 are exposed. Updating is `git pull` then the same command.
 
-### Optional: Telegram, pacts and Orbit-to-Orbit
+### Optional extras: do them in the app
 
-Pacts work out of the box. To chat with Orbit from your phone, create a bot with @BotFather, set `TELEGRAM_BOT_TOKEN`, redeploy, and link your chat from **Connections**. To share pacts with friends who run their own Orbit, set `FEDERATION_ENABLED=true`. See [PACTS.md](PACTS.md).
+Telegram chat, email digests, AI provider keys and Orbit-to-Orbit sharing are all set up in **Connections → Set up Orbit**, with no environment variables and no redeploy. Saved secrets are encrypted with `APP_ENCRYPTION_KEY`. See [PACTS.md](PACTS.md).
 
 ## Removal
 

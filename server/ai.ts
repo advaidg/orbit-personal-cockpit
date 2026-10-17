@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { setting } from './installationConfig.js';
 import OpenAI from 'openai';
 import type { AiProvider, Brief, Signal, Task, UserSettings } from './types.js';
 import { chatGPTCredentials, chatGPTModels } from './chatgpt.js';
@@ -10,8 +11,8 @@ export function selectedProvider(preferred?: AiProvider): AiProvider {
   if (process.env.AI_ENABLED === 'false') return 'rules';
   if (preferred) return preferred;
   if (process.env.AI_PROVIDER) return process.env.AI_PROVIDER as AiProvider;
-  if (process.env.OPENAI_API_KEY) return 'openai';
-  if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
+  if (setting('OPENAI_API_KEY')) return 'openai';
+  if (setting('ANTHROPIC_API_KEY')) return 'anthropic';
   return 'rules';
 }
 
@@ -19,9 +20,9 @@ export function aiProviders(chatgptConfigured=false) {
   return [
     { id:'rules' as const, label:'Private rules', configured:true, external:false },
     { id:'chatgpt-subscription' as const, label:'ChatGPT plan (preview)', configured:chatgptConfigured, external:true },
-    { id:'openai' as const, label:'OpenAI API', configured:!!process.env.OPENAI_API_KEY, external:true },
-    { id:'anthropic' as const, label:'Anthropic API', configured:!!process.env.ANTHROPIC_API_KEY, external:true },
-    { id:'openai-compatible' as const, label:'Local / compatible', configured:!!process.env.AI_BASE_URL&&!!process.env.AI_COMPATIBLE_MODEL, external:!!process.env.AI_BASE_URL&&!/^https?:\/\/(localhost|127\.0\.0\.1|host\.docker\.internal)(:|\/)/.test(process.env.AI_BASE_URL) }
+    { id:'openai' as const, label:'OpenAI API', configured:!!setting('OPENAI_API_KEY'), external:true },
+    { id:'anthropic' as const, label:'Anthropic API', configured:!!setting('ANTHROPIC_API_KEY'), external:true },
+    { id:'openai-compatible' as const, label:'Local / compatible', configured:!!setting('AI_BASE_URL')&&!!setting('AI_COMPATIBLE_MODEL'), external:!!setting('AI_BASE_URL')&&!/^https?:\/\/(localhost|127\.0\.0\.1|host\.docker\.internal)(:|\/)/.test(setting('AI_BASE_URL')!) }
   ];
 }
 
@@ -57,21 +58,21 @@ export async function generateJson(prompt: string, schemaName: string, schema: J
     return generateChatGPTJson(prompt,schema,userId,model);
   }
   if (provider === 'openai') {
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const response = await client.responses.create({ model:process.env.OPENAI_MODEL||'gpt-4.1-mini', input:prompt, text:{format:{type:'json_schema',name:schemaName,strict:true,schema}} });
+    const client = new OpenAI({ apiKey: setting('OPENAI_API_KEY') });
+    const response = await client.responses.create({ model:setting('OPENAI_MODEL')||'gpt-4.1-mini', input:prompt, text:{format:{type:'json_schema',name:schemaName,strict:true,schema}} });
     return parseJson(response.output_text);
   }
   if (provider === 'anthropic') {
-    const client = new Anthropic({ apiKey:process.env.ANTHROPIC_API_KEY });
-    const response = await client.messages.create({ model:process.env.ANTHROPIC_MODEL||'claude-sonnet-4-5', max_tokens:1800, system:'Return only valid JSON matching the supplied schema. Do not use markdown fences.', messages:[{role:'user',content:`${prompt}\n\nJSON schema:\n${JSON.stringify(schema)}`}] });
+    const client = new Anthropic({ apiKey:setting('ANTHROPIC_API_KEY') });
+    const response = await client.messages.create({ model:setting('ANTHROPIC_MODEL')||'claude-sonnet-4-5', max_tokens:1800, system:'Return only valid JSON matching the supplied schema. Do not use markdown fences.', messages:[{role:'user',content:`${prompt}\n\nJSON schema:\n${JSON.stringify(schema)}`}] });
     const block = response.content.find(item=>item.type==='text');
     if (!block || block.type!=='text') throw new Error('Anthropic returned no text');
     return parseJson(block.text);
   }
   if (provider === 'openai-compatible') {
-    if (!process.env.AI_BASE_URL || !process.env.AI_COMPATIBLE_MODEL) throw new Error('AI_BASE_URL and AI_COMPATIBLE_MODEL are required');
-    const client = new OpenAI({apiKey:process.env.AI_COMPATIBLE_API_KEY||'local',baseURL:process.env.AI_BASE_URL});
-    const response = await client.chat.completions.create({model:process.env.AI_COMPATIBLE_MODEL,messages:[{role:'system',content:'Return only valid JSON. Do not use markdown fences.'},{role:'user',content:`${prompt}\n\nJSON schema:\n${JSON.stringify(schema)}`}],response_format:{type:'json_object'}});
+    if (!setting('AI_BASE_URL') || !setting('AI_COMPATIBLE_MODEL')) throw new Error('AI_BASE_URL and AI_COMPATIBLE_MODEL are required');
+    const client = new OpenAI({apiKey:setting('AI_COMPATIBLE_API_KEY')||'local',baseURL:setting('AI_BASE_URL')});
+    const response = await client.chat.completions.create({model:setting('AI_COMPATIBLE_MODEL')!,messages:[{role:'system',content:'Return only valid JSON. Do not use markdown fences.'},{role:'user',content:`${prompt}\n\nJSON schema:\n${JSON.stringify(schema)}`}],response_format:{type:'json_object'}});
     return parseJson(response.choices[0]?.message.content||'{}');
   }
   throw new Error(`AI provider ${provider} is not configured`);

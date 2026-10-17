@@ -38,10 +38,12 @@ import { agentRouter, askRouter, notificationsRouter } from './api/agent.js';
 import { automationsRouter } from './api/automations.js';
 import { skillsRouter } from './api/skills.js';
 import { systemRouter } from './api/system.js';
-import { requireAgentEnabled, sendFailure } from './api/http.js';
+import { forbidDemo, requireAgentEnabled, sendFailure } from './api/http.js';
 import { pactsRouter } from './api/pacts.js';
 import { federationRouter } from './api/federation.js';
 import { channelsRouter } from './api/channels.js';
+import { setupRouter } from './api/setup.js';
+import { loadInstallationConfig } from './installationConfig.js';
 import { publicPactRouter } from './pacts/publicRouter.js';
 import { federationPublicRouter } from './federation/router.js';
 import { startTelegramBot } from './telegram/poller.js';
@@ -88,7 +90,9 @@ async function revokeIfUnshared(connection: Connection, all: Connection[]) {
   if (!shared) await oauthClient().revokeToken(token).catch(() => undefined);
 }
 
-function userId(req: express.Request) { return verifySession(req.cookies[cookieNames.session]) || (process.env.DEMO_MODE === 'false' ? null : demoUser.id); }
+// Anonymous visitors see the sample workspace only when it was asked for, and never by accident in production.
+const anonymousDemo = process.env.DEMO_MODE === 'true' || (!production && process.env.DEMO_MODE !== 'false');
+function userId(req: express.Request) { return verifySession(req.cookies[cookieNames.session]) || (anonymousDemo ? demoUser.id : null); }
 function requireUser(req: express.Request, res: express.Response, next: express.NextFunction) { const id = userId(req); if (!id) return res.status(401).json({ error: 'Not authenticated' }); res.locals.userId = id; next(); }
 
 app.get('/health', (_req, res) => res.json({ ok: true, database: pool ? 'postgres' : 'memory', time: new Date().toISOString() }));
@@ -170,8 +174,9 @@ app.use('/api/automations', requireUser, requireAgentEnabled, automationsRouter)
 app.use('/api/skills', requireUser, requireAgentEnabled, skillsRouter);
 app.use('/api/notifications', requireUser, notificationsRouter);
 app.use('/api/pacts', requireUser, pactsRouter);
-app.use('/api/federation', requireUser, federationRouter);
-app.use('/api/channels', requireUser, channelsRouter);
+app.use('/api/federation', requireUser, forbidDemo, federationRouter);
+app.use('/api/channels', requireUser, forbidDemo, channelsRouter);
+app.use('/api/setup', requireUser, forbidDemo, setupRouter);
 app.get('/api/chatgpt/setup',requireUser,async(_req,res,next)=>{try{res.json(await chatGPTSetup(res.locals.userId));}catch(e){next(e);}});
 app.post('/api/chatgpt/import',requireUser,async(req,res)=>{try{const result=await importChatGPTCredentials(res.locals.userId,req.body);await logActivity(res.locals.userId,{type:'connection',status:'success',title:'ChatGPT plan connected',detail:`Connected ${result.email||'the selected ChatGPT account'}.`}).catch(console.error);res.json(result);}catch(e){console.error(e);res.status(400).json({error:e instanceof Error?e.message:'Could not import ChatGPT credentials'});}});
 app.get('/api/chatgpt/models',requireUser,async(_req,res)=>{try{res.json({models:await chatGPTModels(res.locals.userId)});}catch(e){console.error(e);res.status(400).json({error:e instanceof Error?e.message:'Could not load ChatGPT models'});}});
@@ -185,6 +190,7 @@ if (production) { const root = path.resolve(path.dirname(fileURLToPath(import.me
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => { try { sendFailure(res, error); return; } catch { /* not an owner-actionable error */ } logSafe('request failed', error); res.status(500).json({ error: production ? 'Unexpected error' : error instanceof Error ? error.message : 'Unexpected error' }); });
 
 await initStore();
+await loadInstallationConfig().catch(error => logSafe('loading saved settings', error));
 initAgent();
 registerSyncJobs();
 setServices({ gmail: gmailGateway, calendar: calendarGateway, notifier });

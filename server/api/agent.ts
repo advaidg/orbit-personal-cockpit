@@ -18,6 +18,8 @@ import { services } from '../agent/services.js';
 import { notifications, notifier, ownerChannels } from '../notify.js';
 import { getSignal } from '../store.js';
 import { handle, ownerId } from './http.js';
+import { setting } from '../installationConfig.js';
+import { getBotToken } from '../telegram/api.js';
 import { logActivity } from '../store.js';
 
 export const agentRouter = express.Router();
@@ -35,7 +37,7 @@ agentRouter.get('/state', handle(async (_req, res) => {
     limits: { enabled: limits.enabled, maxSteps: limits.maxSteps, maxRunsPerDay: limits.maxRunsPerDay, approvalDefault: limits.approvalDefault, externalWritesEnabled: limits.externalWritesEnabled, emailSendingEnabled: limits.emailSendingEnabled, skillsEnabled: limits.skillsEnabled, mcpEnabled: limits.mcpEnabled, automationsEnabled: limits.automationsEnabled, memoryEnabled: limits.memoryEnabled, memoryRetentionDays: limits.memoryRetentionDays, runRetentionDays: limits.runRetentionDays },
     gmail: { connected: gmail.connected, canDraft: gmail.canDraft, accountEmail: gmail.accountEmail },
     calendar: { connected: calendar.connected, canWrite: calendar.canWrite },
-    channels: { emailConfigured: !!process.env.SMTP_URL, telegramConfigured: !!process.env.TELEGRAM_BOT_TOKEN }
+    channels: { emailConfigured: !!setting('SMTP_URL'), telegramConfigured: !!getBotToken() }
   });
 }));
 
