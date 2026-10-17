@@ -18,6 +18,8 @@ export interface Connection {
   accountEmail?: string;
   status: 'connected' | 'available' | 'coming_soon' | 'error';
   lastSyncedAt?: string;
+  lastSyncAttemptAt?: string;
+  lastSyncError?: string;
   encryptedTokens?: string;
 }
 
@@ -61,6 +63,17 @@ export interface UserSettings {
   aiProvider: AiProvider;
   aiInputChars: number;
   chatgptModel?: string;
+  autoSync: boolean;
+  syncIntervalMinutes: number;
+  syncLookbackDays: number;
+  initialSyncLookbackDays: number;
+  syncMaxMessages: number;
+  initialSyncMaxMessages: number;
+  excludePromotions: boolean;
+  excludeSocial: boolean;
+  excludeForums: boolean;
+  blockedSenders: string[];
+  blockedKeywords: string[];
 }
 
 export interface DashboardData {

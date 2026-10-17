@@ -42,6 +42,8 @@ Start with `AI_PROVIDER=rules`; it requires no AI account and transmits no messa
 
 Visit `/health` and confirm `ok:true` and `database:postgres`. Then open the home page, continue with Gmail, and run the first sync.
 
+In **Settings → Sync schedule & inbox rules**, choose how far back the first import should read, cap the number of messages, exclude Gmail Promotions/Social/Forums, and add sender or keyword filters. Auto-sync can be paused without disconnecting Gmail; **Sync now** remains available. If you later change AI providers, use the explicitly confirmed **Clear & re-sync** operation to rebuild normalized signals, the brief, and email-generated tasks while preserving connections and manual tasks.
+
 ## Docker installation
 
 ```bash

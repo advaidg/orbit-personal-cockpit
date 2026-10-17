@@ -82,6 +82,7 @@ export async function understandMessages(messages:Array<{id:string;from:string;s
   if(!messages.length)return[];
   const provider=selectedProvider(settings?.aiProvider);
   if(provider==='rules')return rulesTriage(messages);
+  if(messages.length>20){const items:TriageItem[]=[];for(let index=0;index<messages.length;index+=20)items.push(...await understandMessages(messages.slice(index,index+20),settings,userId));return items;}
   const chars=Math.min(8000,Math.max(200,settings?.aiInputChars||Number(process.env.AI_INPUT_CHARS_PER_ITEM||1800)));
   const result=await generateJson(`You are the intelligence layer for a private personal operations dashboard. Classify these recent emails. Be selective: newsletters and FYI messages must not become tasks. Summaries must be factual and under 22 words. Never invent a deadline.\n\n${JSON.stringify(messages.map(m=>({...m,text:m.text.slice(0,chars)})))}`,'email_triage',triageSchema,provider,userId,settings?.chatgptModel);
   return result.items as TriageItem[];

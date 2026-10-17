@@ -29,10 +29,11 @@ Most dashboards show more data. Orbit makes fewer demands on your attention.
 - Responsive personal cockpit with AI daily brief
 - Multiple Gmail account connection model
 - Gmail OAuth with read-only scope and encrypted refresh tokens
-- Automatic sync every 30 minutes, configurable with `SYNC_CRON`
+- Owner-controlled auto-sync interval, first-sync history/limits, Gmail category exclusions, and sender/keyword filters; `SYNC_CRON` controls the scheduler wake-up
 - AI classification into action, waiting, calendar, money, travel, people, and noise
 - OpenAI API, Anthropic API, OpenAI-compatible models, and eligible ChatGPT plan usage with a private rules-only mode
 - Focus queue with manual capture and completion
+- Visible per-connection sync errors plus safe clear-and-reprocess after changing AI providers
 - PostgreSQL in production; zero-setup in-memory demo locally
 - Health check and production Docker image
 
