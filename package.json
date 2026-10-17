@@ -8,6 +8,7 @@
     "dev": "concurrently -k \"tsx watch server/index.ts\" \"vite\"",
     "build": "tsc -p tsconfig.server.json && vite build",
     "start": "node dist-server/index.js",
+    "chatgpt:connect": "tsx scripts/chatgpt-connect.ts",
     "check": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
     "express-rate-limit": "latest",
     "googleapis": "latest",
     "helmet": "latest",
+    "jose": "^6.2.12",
     "lucide-react": "latest",
     "node-cron": "latest",
     "openai": "latest",
@@ -36,6 +38,7 @@
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "concurrently": "latest",
+    "open": "^11.0.4",
     "tsx": "latest",
     "typescript": "latest"
   },

@@ -1,4 +1,5 @@
 node_modules
+orbit-chatgpt-credentials*.json
 dist
 dist-server
 .env

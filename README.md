@@ -31,7 +31,7 @@ Most dashboards show more data. Orbit makes fewer demands on your attention.
 - Gmail OAuth with read-only scope and encrypted refresh tokens
 - Automatic sync every 30 minutes, configurable with `SYNC_CRON`
 - AI classification into action, waiting, calendar, money, travel, people, and noise
-- OpenAI, Anthropic, and OpenAI-compatible model support with a private rules-only mode
+- OpenAI API, Anthropic API, OpenAI-compatible models, and eligible ChatGPT plan usage with a private rules-only mode
 - Focus queue with manual capture and completion
 - PostgreSQL in production; zero-setup in-memory demo locally
 - Health check and production Docker image
@@ -92,12 +92,13 @@ The detailed product thesis—including Waiting On, People, Life Admin, decision
 
 The long-term idea is a private, portable attention layer—not a replacement for the tools where the work happens.
 
-See [AI providers](docs/AI_PROVIDERS.md) and [data and privacy](docs/DATA_AND_PRIVACY.md) for the complete operating model.
+See [AI providers](docs/AI_PROVIDERS.md), [ChatGPT plan setup](docs/CHATGPT_SUBSCRIPTION.md), and [data and privacy](docs/DATA_AND_PRIVACY.md) for the complete operating model.
 
 ## Security posture
 
 - Gmail requests `gmail.readonly`; Orbit does not send or delete email.
 - OAuth tokens are encrypted with AES-256-GCM before persistence.
+- Imported ChatGPT OAuth credentials are installation-bound, encrypted before persistence, refreshed server-side, and revocable from Settings.
 - Application data lives in PostgreSQL, not the disposable application container, so normal Railway builds and redeploys do not remove accounts, connections, tasks, signals, briefs, or settings.
 - AI provider selection and excerpt limits are stored per owner in PostgreSQL; provider credentials remain server-side environment variables.
 - `APP_ENCRYPTION_KEY` and `SESSION_SECRET` must be unique production secrets.
@@ -107,7 +108,7 @@ See [AI providers](docs/AI_PROVIDERS.md) and [data and privacy](docs/DATA_AND_PR
 - Raw email bodies are processed transiently and are never stored in PostgreSQL.
 - Normalized signals expire after `SIGNAL_RETENTION_DAYS` (30 by default).
 - `AI_PROVIDER=rules` keeps message content away from external AI providers.
-- This MVP uses an encrypted signed browser session. Before a large public launch, add rate limiting, CSRF protection for mutations, account deletion/export, and a formal privacy policy.
+- The owner dashboard uses a signed, expiring, secure HTTP-only session; mutations are origin-checked and rate-limited.
 
 ## Contributing
 

@@ -5,6 +5,7 @@ Orbit is useful without paid AI. Set `AI_PROVIDER` to choose one explicit path; 
 | Value | Authentication | Best for |
 | --- | --- | --- |
 | `rules` | None | Maximum privacy, zero AI cost |
+| `chatgpt-subscription` | Sign in with ChatGPT | Eligible ChatGPT plan usage (preview) |
 | `openai` | `OPENAI_API_KEY` | OpenAI Responses API |
 | `anthropic` | `ANTHROPIC_API_KEY` | Claude API |
 | `openai-compatible` | Base URL, model, optional key | Ollama, LM Studio, or another compatible server |
@@ -15,9 +16,9 @@ Consumer subscriptions and developer APIs are normally separate. A Claude Pro or
 
 OpenAI now provides **Sign in with ChatGPT** for eligible open-source tools. Eligible Plus and Pro users can authorize supported AI requests against their ChatGPT plan without sharing an API key or their conversations.
 
-Orbit will support this as a separate `chatgpt-plan` provider. It must use the official OAuth + PKCE flow, validate tokens and scopes, stream Responses API calls with `store:false`, and keep rotating refresh tokens encrypted. We will not scrape ChatGPT cookies or accept account passwords.
+Orbit supports this as the separate `chatgpt-subscription` provider. It uses the official OAuth + PKCE flow, validates identity tokens and scopes, streams Responses API calls with `store:false`, and keeps rotating refresh tokens encrypted. Orbit does not scrape ChatGPT cookies, accept account passwords, or read ChatGPT conversations or memory.
 
-For a remote self-host such as Railway, OpenAI's current flow requires completing authorization locally and securely transferring the protected registration to the VM. Until Orbit ships that companion flow, use `rules`, an API key, or an OpenAI-compatible local model.
+For a remote self-host such as Railway, authorization is completed locally and the protected credential bundle is imported into the owner-only Settings screen. See [ChatGPT plan setup](CHATGPT_SUBSCRIPTION.md).
 
 ## Local model example
 

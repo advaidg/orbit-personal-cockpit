@@ -31,7 +31,7 @@ export async function syncGmailConnection(connection: Connection) {
     return { id: id!, from: headers.from || 'Unknown sender', subject: headers.subject || '(no subject)', date: headers.date || new Date(Number(data.internalDate)).toISOString(), text: bodyText(data.payload) || data.snippet || '' };
   }));
   const settings = await getSettings(connection.userId);
-  const understood = await understandMessages(messages, settings);
+  const understood = await understandMessages(messages, settings, connection.userId);
   const existing = await getSignals(connection.userId);
   for (const item of understood) {
     const source = messages.find(m => m.id === item.sourceId)!;
@@ -40,7 +40,7 @@ export async function syncGmailConnection(connection: Connection) {
     if (item.task && !existing.some(s => s.sourceId === item.sourceId)) await createTask(connection.userId, { title: item.task, priority: item.priority, source: 'gmail', sourceSignalId: signal.id });
   }
   connection.lastSyncedAt = new Date().toISOString(); connection.status = 'connected'; await upsertConnection(connection);
-  await saveBrief(connection.userId, await buildBrief(await getSignals(connection.userId), settings));
+  await saveBrief(connection.userId, await buildBrief(await getSignals(connection.userId), settings, connection.userId));
 }
 
 export async function syncUser(userId: string) {

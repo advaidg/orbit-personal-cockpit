@@ -1,6 +1,6 @@
 export type Source = 'gmail' | 'outlook' | 'calendar' | 'github' | 'slack' | 'manual';
 export type Priority = 'now' | 'soon' | 'later';
-export type AiProvider = 'rules' | 'openai' | 'anthropic' | 'openai-compatible';
+export type AiProvider = 'rules' | 'chatgpt-subscription' | 'openai' | 'anthropic' | 'openai-compatible';
 
 export interface User {
   id: string;
@@ -60,6 +60,7 @@ export interface Brief {
 export interface UserSettings {
   aiProvider: AiProvider;
   aiInputChars: number;
+  chatgptModel?: string;
 }
 
 export interface DashboardData {
@@ -71,6 +72,6 @@ export interface DashboardData {
   tasks: Task[];
   connections: Connection[];
   settings: UserSettings;
-  system: { storage: 'postgres' | 'memory'; persistent: boolean; aiProviders: Array<{ id: AiProvider; label: string; configured: boolean; external: boolean }> };
+  system: { storage: 'postgres' | 'memory'; persistent: boolean; aiProviders: Array<{ id: AiProvider; label: string; configured: boolean; external: boolean }>; chatgpt:{connected:boolean;email?:string;hostId?:string} };
   stats: { needsYou: number; waitingOn: number; cleared: number; noiseFiltered: number };
 }
