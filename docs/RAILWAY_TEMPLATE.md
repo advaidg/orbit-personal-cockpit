@@ -26,6 +26,9 @@ Configure these Orbit variables:
 | `OPENAI_API_KEY` | optional prompt |
 | `SIGNAL_RETENTION_DAYS` | `30` |
 | `DEMO_MODE` | `false` |
+| `PACTS_ENABLED` | `true` |
+| `TELEGRAM_BOT_TOKEN` | optional prompt: chat with Orbit from Telegram |
+| `FEDERATION_ENABLED` | optional prompt (`false` by default): share pacts with friends' Orbits |
 
 After deploying the project successfully:
 

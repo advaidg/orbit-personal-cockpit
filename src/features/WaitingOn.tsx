@@ -5,7 +5,8 @@ import { fromLocalInput, useLoad } from '../hooks';
 import type { Commitment } from '../types';
 import { Chip, Empty, ErrorLine, PageHead, ago } from './ui';
 import { ProposalCard } from './ProposalCard';
-import type { Proposal } from '../types';
+import type { Proposal, SharedPact } from '../types';
+import { ShareModal } from './Pacts';
 
 const overdue = (item: Commitment) => item.status !== 'resolved' && (item.followUpAt ?? item.expectedAt ?? '9') <= new Date().toISOString();
 const when = (iso?: string) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'no date');
@@ -21,6 +22,12 @@ function CommitmentRow({ item, onChanged, onNotice, onProposals }: { item: Commi
   const patch = (body: object, done: string) => act(() => api.patch(`/api/agent/commitments/${item.id}`, body), done);
   const days = (count: number) => new Date(Date.now() + count * 86_400_000).toISOString();
   const closed = item.status === 'resolved' || item.status === 'dismissed';
+  const [shared, setShared] = useState<SharedPact | null>(null);
+  const makePact = () => act(async () => {
+    const result = await api.post<Partial<SharedPact>>('/api/pacts', { commitmentId: item.id, direction: item.direction, otherPerson: item.otherPerson, otherEmail: item.otherEmail, action: item.action, dueAt: item.expectedAt });
+    if (result.url && result.token && result.message) setShared({ url: result.url, token: result.token, message: result.message });
+    else onNotice('This already has a pact. Open Pacts and choose “New link” to share it again.');
+  }, 'Pact ready.');
   return (
     <article className={`commit-row ${overdue(item) ? 'overdue' : ''} ${closed ? 'closed' : ''}`}>
       <div className="commit-main">
@@ -39,10 +46,12 @@ function CommitmentRow({ item, onChanged, onNotice, onProposals }: { item: Commi
       <div className="commit-actions">
         {!closed && <button className="btn primary" disabled={busy} onClick={() => patch({ status: 'resolve' }, 'Marked as done.')}>Mark done</button>}
         {!closed && item.direction === 'they_owe' && item.evidenceSignalId && <button className="btn plain" disabled={busy} onClick={() => act(async () => { const result = await api.post<{ proposals: Proposal[] }>(`/api/agent/commitments/${item.id}/follow-up`); onProposals(result.proposals); }, 'Follow-up draft prepared for your approval.')}>Draft follow-up</button>}
+        {!closed && <button className="btn plain" disabled={busy} onClick={makePact}>Make a pact</button>}
         {!closed && <select aria-label="Snooze" className="btn plain" disabled={busy} value="" onChange={(event) => { if (event.target.value) void patch({ status: 'snooze', until: days(Number(event.target.value)) }, 'Snoozed.'); }}><option value="">Snooze…</option><option value="1">1 day</option><option value="3">3 days</option><option value="7">1 week</option></select>}
         {!closed && <button className="btn plain" disabled={busy} onClick={() => patch({ status: 'dismiss' }, 'Dismissed.')}>Dismiss</button>}
         {closed && <button className="btn plain" disabled={busy} onClick={() => patch({ status: 'reopen' }, 'Reopened.')}>Reopen</button>}
       </div>
+      {shared && <ShareModal shared={shared} person={item.otherPerson} onClose={() => setShared(null)} onNotice={onNotice} />}
     </article>
   );
 }

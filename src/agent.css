@@ -317,3 +317,27 @@ select.btn { padding-right: 8px; }
   .top-actions { gap: 8px; } .sync-btn span { display: none; }
   .notice { flex-direction: column; align-items: flex-start; }
 }
+
+/* ── Pacts ─────────────────────────────────────────────────────────────── */
+.pact-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; padding: 18px 20px; background: var(--panel, #161a13); border: 1px solid #2c3328; border-left: 3px solid var(--acid, #c8f060); border-radius: var(--radius, 14px); }
+.pact-row.closed { opacity: .62; border-left-color: #3d4638; }
+.pact-main { min-width: 0; display: grid; gap: 6px; }
+.pact-main h3 { margin: 4px 0 0; font-size: 17px; }
+.pact-main p { margin: 0; color: var(--text, #ecf0e4); font-size: 15px; line-height: 1.45; }
+.pact-main small { color: var(--text-soft, #a3ac98); font-size: 12px; }
+.pact-main blockquote { margin: 4px 0 0; padding: 8px 12px; border-left: 2px solid #4a5640; color: var(--text-soft, #a3ac98); font-size: 13px; }
+.id-card { display: grid; gap: 4px; padding: 14px 16px; margin: 4px 0 14px; background: #10130f; border: 1px dashed #3b4536; border-radius: 12px; }
+.id-card span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-soft, #a3ac98); margin-top: 6px; }
+.id-card span:first-child { margin-top: 0; }
+.id-card code, .peer-row code { font: 500 13px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--acid, #c8f060); word-break: break-all; }
+.peer-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; padding: 14px 0; border-top: 1px solid #262d22; align-items: start; }
+.peer-row > div:first-child { display: grid; gap: 3px; min-width: 0; }
+.peer-row small { color: var(--text-soft, #a3ac98); word-break: break-all; }
+.peer-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; max-width: 460px; }
+.peer-actions .inline-edit { flex-basis: 100%; }
+.tg-link { display: grid; gap: 10px; padding: 12px 0 4px; }
+@media (max-width: 720px) {
+  .pact-row, .peer-row { grid-template-columns: 1fr; }
+  .peer-actions { justify-content: flex-start; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) { .pact-row { transition: none; } }

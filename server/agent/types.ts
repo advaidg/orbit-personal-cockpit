@@ -94,6 +94,8 @@ export interface ActionProposal extends Owned {
   lastError?: { code: string; message: string; action: string };
   feedback?: 'helpful' | 'not_helpful';
   generatedBy?: AiProvider;
+  /** Set once the proposal was shown in the owner's linked Telegram chat, so it is announced only once. */
+  telegramNotifiedAt?: string;
   updatedAt: string;
 }
 

@@ -11,6 +11,8 @@ import { pruneMemories } from './agent/memory.js';
 import { dismissReminder, dueReminders, markReminderFired } from './agent/reminders.js';
 import { pruneRuns } from './agent/runs.js';
 import { getAgentSettings } from './agent/settings.js';
+import { announcePendingProposals } from './telegram/poller.js';
+import { federation } from './federation/identity.js';
 
 export interface TickSummary {
   remindersFired: number;
@@ -18,6 +20,7 @@ export interface TickSummary {
   snoozesWoken: number;
   automationsRun: number;
   syncsQueued: number;
+  telegramAnnounced: number;
 }
 
 /**
@@ -76,7 +79,8 @@ export async function tick(now = new Date()): Promise<TickSummary> {
   const limits = agentLimits();
   const automationsRun = limits.enabled && limits.automationsEnabled ? await runDueAutomations(now).catch((error) => (logSafe('automations', error), 0)) : 0;
   const syncsQueued = await enqueueDueSyncs(now).catch((error) => (logSafe('sync scheduling', error), 0));
-  return { remindersFired: reminders.fired, remindersDismissed: reminders.dismissed, snoozesWoken, automationsRun, syncsQueued };
+  const telegramAnnounced = limits.enabled ? await announcePendingProposals(now).catch((error) => (logSafe('telegram announce', error), 0)) : 0;
+  return { remindersFired: reminders.fired, remindersDismissed: reminders.dismissed, snoozesWoken, automationsRun, syncsQueued, telegramAnnounced };
 }
 
 /** Daily housekeeping: retention for signals, runs, jobs, memories and notifications. */
@@ -86,6 +90,8 @@ export async function housekeeping(now = new Date()): Promise<void> {
   await pruneFinishedJobs(Math.max(7, agentLimits().runRetentionDays));
   await pruneMemories();
   await notifications.pruneBefore(new Date(now.getTime() - 30 * 86_400_000));
+  // Replay markers only matter inside the five-minute clock window; keep a day for safety.
+  await federation.pruneBefore(new Date(now.getTime() - 86_400_000), { kind: 'seen' });
 }
 
 export function startScheduler(): { stop: () => void } {

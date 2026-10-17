@@ -1,0 +1,49 @@
+# One-command install for any VPS with Docker and a domain pointing at it.
+#   cp .env.example .env   (set DOMAIN, APP_URL=https://DOMAIN, OWNER_EMAIL, Google credentials, secrets)
+#   docker compose -f docker-compose.vps.yml up -d --build
+# Caddy gets and renews the HTTPS certificate automatically. Only ports 80 and 443 are exposed.
+services:
+  orbit:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://orbit:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/orbit
+      NODE_ENV: production
+      DATABASE_SSL: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: orbit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: orbit
+    volumes:
+      - orbit-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orbit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      - orbit
+    restart: unless-stopped
+
+volumes:
+  orbit-data:
+  caddy-data:

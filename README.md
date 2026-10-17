@@ -1,127 +1,204 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="public/brand/orbit-lockup-dark.svg">
-  <img src="public/brand/orbit-lockup-light.svg" alt="Orbit — Everything important. Nothing noisy." width="620">
+  <img src="public/brand/orbit-lockup-light.svg" alt="Orbit" width="560">
 </picture>
 
-# Orbit
+# Orbit — the personal agent that keeps promises
 
-**Everything important. Nothing noisy.**
+**Your own AI chief of staff, running in *your* cloud. It reads your mail, remembers who owes whom, drafts the follow-ups, and asks before it does anything. And it is the first agent that works *with the other person*, not just for you.**
 
-Brand assets and usage guidance are available in [`public/brand`](public/brand/BRAND.md).
+[![MIT](https://img.shields.io/badge/license-MIT-c8f060?style=flat-square)](LICENSE)
+[![Self-hosted](https://img.shields.io/badge/self--hosted-your%20cloud%2C%20your%20data-1d1a16?style=flat-square)](#install-it-in-your-own-cloud)
+[![Tests](https://img.shields.io/badge/tests-243%20passing-2f6b4f?style=flat-square)](#how-its-built)
+[![No sending](https://img.shields.io/badge/email%20sending-impossible%20by%20design-b4411f?style=flat-square)](#safety-you-can-verify)
 
-Orbit is an open-source personal operations cockpit. It turns the scattered signals in your inboxes, calendars, tasks, and work tools into one calm daily brief: what changed, what needs you, what you are waiting on, and what can safely wait.
+<p align="center">
+  <img src="docs/images/pacts.jpg" alt="Orbit's Pacts screen: open promises with the other person's reply" width="860">
+</p>
 
-Gmail is the first working connector, not the product boundary. The source model is designed for multiple Gmail accounts, Outlook, calendars, GitHub, Slack, finance alerts, travel, and manual capture.
+> **Nothing here runs on my servers.** Orbit is a project you deploy to Railway, a $5 VPS, or `docker compose` on any machine. One person, one install, one database that only you own.
 
-## Why this is different
+---
 
-Most dashboards show more data. Orbit makes fewer demands on your attention.
+## The idea: pacts
 
-- **One brief, many sources** — normalize messages, events, reviews, alerts, and reminders into a shared signal model.
-- **A focus queue, not another inbox** — AI promotes only items that need a decision or action.
-- **Waiting-on memory** — keep track of commitments other people owe you.
-- **Quiet by default** — newsletters and passive updates are measured as noise filtered, not work created.
-- **Honest before setup** — a guided connection screen appears until real sources are connected; sample data is explicitly opt-in.
-- **Self-hostable** — PostgreSQL, encrypted OAuth tokens, a Dockerfile, and Railway configuration are included.
+Every personal-agent demo ends the same way: *it did a thing for me.* But most of what slips through the cracks isn't a task. It's a **promise between two people**:
 
-## Current MVP
+- “I'll send you the revised deck Friday.” *(then nobody checks)*
+- “Can you review this by Monday?” *(then you forget you said yes)*
 
-- Responsive personal cockpit with AI daily brief
-- Multiple Gmail account connection model
-- Gmail OAuth with read-only scope and encrypted refresh tokens
-- Installation-local dashboard password for returning browsers; Gmail remains a connector and recovery path
-- Owner-controlled auto-sync interval, first-sync history/limits, Gmail category exclusions, and sender/keyword filters; `SYNC_CRON` controls the scheduler wake-up
-- AI classification into action, waiting, calendar, money, travel, people, and noise
-- OpenAI API, Anthropic API, OpenAI-compatible models, and eligible ChatGPT plan usage with a private rules-only mode
-- Focus queue with manual capture and completion
-- Visible per-connection sync errors plus safe clear-and-reprocess after changing AI providers
-- Owner-visible activity and diagnostics timeline with plain-language next steps; no message bodies, prompts, tokens, or AI answers are logged
-- PostgreSQL in production; zero-setup in-memory demo locally
-- Health check and production Docker image
+So Orbit makes the promise itself a first-class object. Say it in chat, in Waiting On, or in Telegram, and Orbit turns it into a **pact**:
 
-## Agent (new)
+1. Orbit creates a private link and a ready-to-paste message. **It sends nothing; you do.**
+2. The other person opens the link: **no account, no app, no install**. One tap: *I'm on it · It's done · I need more time · I can't do this.*
+3. Orbit updates your Waiting On list, stops nagging when it's done, and pings you (in the app, and on Telegram).
 
-Orbit now proposes work instead of only showing it: draft replies, waiting-on tracking, deadlines, reminders, automations and calendar suggestions, all through an Approval Center. See [docs/AGENT.md](docs/AGENT.md) for the safety model, limits and environment controls.
+<p align="center">
+  <img src="docs/images/pact-page.jpg" alt="The page the other person sees: one promise, four buttons, no login" width="620">
+</p>
 
-## Local setup
+That page is also how Orbit **reaches people**. Everyone you send a pact to sees a one-tap tracker and a link to run their own. And if your friend already runs Orbit, the two installs can exchange pacts directly: **signed messages, explicit two-way trust, no accounts, no middleman server.**
+
+It's a tiny protocol for keeping your word, with an agent that does the remembering.
+
+## Try it in two minutes
 
 ```bash
-cp .env.example .env
+git clone https://github.com/advaidg/orbit-personal-cockpit.git
+cd orbit-personal-cockpit
 npm install
-npm run dev
+DEMO_MODE=true npm run dev       # sample data, clearly labelled, nothing connected
 ```
 
-Open `http://localhost:5173`. Set `DEMO_MODE=true` only if you explicitly want the visibly labeled sample workspace. Otherwise Orbit starts empty and waits for real sources. The API runs on port 3000.
+Open <http://localhost:5173>. Go to **Pacts → Make a pact**, copy the link into another browser tab, and answer as the other person.
 
-For a production-like local install with PostgreSQL:
+## What you get
 
-```bash
-cp .env.example .env
-docker compose up --build
-```
+| | |
+| --- | --- |
+| **Pacts** | Private one-tap links; replies update Waiting On; Orbit-to-Orbit sharing between installs. |
+| **Waiting On** | Finds promises and requests in your Gmail with deterministic rules (not vibes), suggests when to follow up, and drafts the nudge. |
+| **Approval Center** | Every action Orbit proposes shows *what changes, why, and what leaves your install*, and waits for you. Edit it, approve it, reject it, or undo it. |
+| **Telegram** | Chat with Orbit and approve or reject proposals with buttons, from your phone. Same approval rules as the web app. |
+| **Gmail drafts** | Writes reply drafts into your Drafts folder. You read, edit and send them yourself. |
+| **Calendar** | Finds conflicts, adds preparation tasks, creates events only after you approve each one. |
+| **Transparent memory** | Everything Orbit “learns” is a plain sentence you can read, edit or delete: *“Messages from maya@… are high priority.”* |
+| **Automations** | Eight ready recipes (morning brief, bills due, no-reply follow-ups…) with dry-run, per-day limits and a kill switch. |
+| **Ask Orbit** | Natural-language requests become typed tool calls, never free-form actions. Works with no AI provider at all. |
+| **Skills & MCP** | Optional and **off by default**. Declarative HTTP skills and MCP servers, domain-allowlisted, always approval-gated. |
+| **Bring your own brain** | Private rules-only mode (nothing leaves your server), OpenAI, Anthropic, any OpenAI-compatible endpoint, or your ChatGPT plan. |
 
-Then open `http://localhost:3000`.
+<p align="center">
+  <img src="docs/images/approvals.jpg" alt="The Approval Center: what will change, why, and what leaves your install" width="860">
+</p>
 
-To connect Gmail, create a Google OAuth 2.0 **Web application**, enable the Gmail API, and add this redirect URI:
+## Talk to it from Telegram
 
 ```text
-http://localhost:3000/auth/google/callback
+you     who am I waiting on?
+orbit   Waiting on:
+        • Maya Chen: send the revised launch deck (2026-10-20)
+        • Sam Okafor: confirm the venue booking (2026-10-26)
+
+you     /pact they Maya Chen | send the contract | friday
+orbit   Pact created. Forward this message — I haven't sent it to anyone:
+orbit   Hi Maya, you mentioned you'd send the contract by 2026-10-23. I'm tracking it
+        here so neither of us has to chase: https://orbit.you.dev/p/…
+
+orbit   Maya Chen confirmed
+        send the contract.                      ← she tapped “I'm on it”
+
+orbit   Remind you: “call the dentist”
+        Stays inside Orbit.      [ Approve ] [ Reject ]
 ```
 
-Then populate `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`.
+Orbit long-polls Telegram, so there is **no webhook to configure**. Only a private chat you link with a one-time code is ever obeyed.
 
-## Deploy to Railway
+## Safety you can verify
 
-1. Push this repository to GitHub.
-2. In Railway, create a project from the repository.
-3. Add a PostgreSQL service. Railway injects `DATABASE_URL` automatically.
-4. Generate a public domain for the Orbit service.
-5. Set the variables from `.env.example`, with `APP_URL` set to the Railway domain and `OWNER_EMAIL` set to the only Google account allowed into the installation.
-6. Add `https://YOUR-DOMAIN/auth/google/callback` to the Google OAuth client.
+An agent that touches your inbox has to earn trust. These aren't promises in a README; each is enforced in code and covered by tests.
 
-Railway detects the root `Dockerfile`; `/health` is configured as the deployment health check.
+- **Orbit cannot send email. There is no send code path.** The Gmail gateway exposes only “read headers” and “create / read / delete a draft”. *(Honest footnote: Google has no draft-only OAuth scope, so the permission Google shows you technically also covers sending. Orbit just contains no code that does it, and says so on the Connections page.)*
+- **The model never acts; it only asks.** Model output can only request *typed tools*. Each request is validated, authorized, previewed and policy-checked before anything runs, and each action runs exactly once.
+- **Email is data, never instructions.** Draft recipients come only from Gmail headers. URLs in AI drafts are stripped. Text typed by the other person on a pact page is stored as plain text and never handed to the agent as a command.
+- **You hold the brakes.** A global **Pause**, per-feature kill switches, env-level ceilings the UI can only tighten, and daily run limits. Approvals can't be bypassed from Telegram or anywhere else; they go through the same policy gate.
+- **Everything is auditable.** Runs, steps, approvals, tool executions and verification results are stored and viewable. Errors are redacted; secrets never reach logs.
+- **Pact links are capabilities.** 192-bit random secret, stored only as a hash, revocable, expiring, rate-limited. The public page shows the promise and nothing else: no email, no cookies, no scripts, no indexing.
+- **Federation is opt-in and zero-trust by default.** Ed25519-signed messages, five-minute validity, replay protection, SSRF-safe discovery, a fingerprint you must type to trust a peer, and a cap on what any peer can push.
 
-On the first visit, use Gmail once to establish the owner and connector. Then open **Settings → Dashboard password** and create a password of at least 12 characters. New browsers can unlock Orbit with that local password without repeating Google sign-in; Google OAuth remains available for reconnecting Gmail or recovery.
+Full details: [docs/AGENT.md](docs/AGENT.md) · [docs/PACTS.md](docs/PACTS.md) · [docs/DATA_AND_PRIVACY.md](docs/DATA_AND_PRIVACY.md) · [SECURITY.md](SECURITY.md)
 
-Complete instructions are in [docs/INSTALL.md](docs/INSTALL.md). Every installation exposes public `/privacy`, `/terms`, and `/security` pages for Google OAuth configuration while keeping the dashboard itself owner-only.
+## Install it in your own cloud
 
-For a public one-click template, follow [the template publishing checklist](docs/RAILWAY_TEMPLATE.md) after the GitHub repository is public. Railway assigns the final template code, which can then be added as a Deploy button here.
+Pick one. Every path ends with **you** owning the server and the data.
 
-## Product roadmap
+### A. Railway (about ten minutes)
 
-The detailed product thesis—including Waiting On, People, Life Admin, decision packets, personal rules, and the connector sequence—is in [docs/PRODUCT_VISION.md](docs/PRODUCT_VISION.md).
+1. Fork or import this repository into Railway as a new project.
+2. Add a **PostgreSQL** service (Railway wires `DATABASE_URL` for you) and generate a public domain.
+3. Run `npm run secrets` locally and paste the two values it prints; set `APP_URL` to your Railway domain and `OWNER_EMAIL` to **your** Google address (the only account allowed in).
+4. Create a Google OAuth *Web application*, enable the Gmail API, and add `https://YOUR-DOMAIN/auth/google/callback` as a redirect URI. Paste the client ID and secret into Railway.
+5. Open your domain, sign in with Google once, then set a dashboard password in **Settings**.
 
-| Layer | Next connectors | What Orbit extracts |
-| --- | --- | --- |
-| Communication | Outlook, Slack, Teams | requests, decisions, waiting-ons |
-| Time | Google Calendar, Outlook Calendar | conflicts, preparation, travel buffers |
-| Work | GitHub, Linear, Jira | reviews, blockers, releases |
-| Life admin | receipts, bills, travel email | due dates, changes, recurring costs |
-| Knowledge | Drive, Notion | related context for each decision |
+The repo ships a production `Dockerfile` and a `/health` check. Railway picks them up automatically. A one-click template checklist is in [docs/RAILWAY_TEMPLATE.md](docs/RAILWAY_TEMPLATE.md).
 
-The long-term idea is a private, portable attention layer—not a replacement for the tools where the work happens.
+### B. Any VPS (Hostinger, Hetzner, DigitalOcean…) with automatic HTTPS
 
-See [AI providers](docs/AI_PROVIDERS.md), [ChatGPT plan setup](docs/CHATGPT_SUBSCRIPTION.md), and [data and privacy](docs/DATA_AND_PRIVACY.md) for the complete operating model.
+```bash
+git clone https://github.com/advaidg/orbit-personal-cockpit.git && cd orbit-personal-cockpit
+cp .env.example .env && npm run secrets   # paste the two lines into .env
+# set DOMAIN, APP_URL=https://DOMAIN, POSTGRES_PASSWORD, OWNER_EMAIL, GOOGLE_CLIENT_ID/SECRET
+docker compose -f docker-compose.vps.yml up -d --build
+```
 
-## Security posture
+Caddy gets and renews the certificate; only ports 80/443 are exposed. Update with `git pull` and the same command.
 
-- Gmail requests `gmail.readonly`; Orbit does not send or delete email.
-- OAuth tokens are encrypted with AES-256-GCM before persistence.
-- Imported ChatGPT OAuth credentials are installation-bound, encrypted before persistence, refreshed server-side, and revocable from Settings.
-- Application data lives in PostgreSQL, not the disposable application container, so normal Railway builds and redeploys do not remove accounts, connections, tasks, signals, briefs, or settings.
-- AI provider selection and excerpt limits are stored per owner in PostgreSQL; provider credentials remain server-side environment variables.
-- `APP_ENCRYPTION_KEY` and `SESSION_SECRET` must be unique production secrets.
-- API credentials never ship to the browser.
-- `OWNER_EMAIL` makes the default deployment single-tenant and rejects other Google identities.
-- The optional dashboard password is stored only as a salted scrypt hash; plaintext is never persisted.
-- Account export omits encrypted credentials; disconnect and deletion attempt provider-token revocation.
-- Raw email bodies are processed transiently and are never stored in PostgreSQL.
-- Normalized signals expire after `SIGNAL_RETENTION_DAYS` (30 by default).
-- `AI_PROVIDER=rules` keeps message content away from external AI providers.
-- The owner dashboard uses a signed, expiring, secure HTTP-only session; mutations are origin-checked and rate-limited.
+### C. Docker on your laptop or home server
+
+```bash
+cp .env.example .env && docker compose up --build   # → http://localhost:3000
+```
+
+Step-by-step with screenshots-worth of detail: **[docs/INSTALL.md](docs/INSTALL.md)**.
+
+### Then turn on the good parts
+
+| Want | Set |
+| --- | --- |
+| Gmail reply drafts | Connections → *Read plus create drafts* |
+| Chat from your phone | `TELEGRAM_BOT_TOKEN` (make a bot with @BotFather), then Connections → *Link Telegram chat* |
+| Share pacts with friends who run Orbit | `FEDERATION_ENABLED=true` (needs `OWNER_EMAIL` and an https `APP_URL`) |
+| A smarter brain | `AI_PROVIDER=openai\|anthropic\|openai-compatible` plus a key. Or leave `rules` for fully private |
+| Email digests | `SMTP_URL` |
+
+## How it's built
+
+TypeScript end to end: **Node 25 · Express 5 · React 19 · Vite · PostgreSQL · zod**. No framework magic you have to learn.
+
+```text
+Gmail / Calendar ──▶ signals ──▶ detectors (promises, deadlines, replies)
+                                     │
+Telegram / Ask Orbit / Automations ──┴─▶ proposals ──▶ policy ──▶ YOU approve
+                                                          │
+                       durable job queue ◀────────────────┘
+                              │  (retries, idempotency, crash recovery)
+                              ▼
+                  tool executes once ─▶ verify ─▶ audit log ─▶ undo
+```
+
+- **Durable job queue** on Postgres (`FOR UPDATE SKIP LOCKED`, backoff, idempotency keys, stale-job recovery, cancel).
+- **Versioned migrations** with an advisory lock; legacy installs adopt them automatically.
+- **Policy engine** is a pure function over risk classes (read · local · notify · draft · calendar · send · delete · financial · shell · skill). Env sets the ceiling; the UI can only be stricter.
+- **Two storage modes with identical behavior**: in-memory for demos, Postgres for real use. The same 246 tests run against both.
+- **Small surface**: 116 KB gzipped JS, no telemetry, no third-party scripts.
+
+```bash
+npm test          # in-memory
+npm run test:pg   # against Postgres (see package.json for the connection string)
+npm run check     # strict type-check: app, server, tests
+```
+
+## Status — read this before you rely on it
+
+Orbit is **early software, built in the open**. The core is solid: 246 automated tests covering the approval flow, policy, idempotency, retries, prompt-injection handling, cross-account isolation, pact links, federation signing/replay/forgery, and Telegram linking. But the integrations that need *your* accounts (real Google OAuth, a real Telegram bot, a second real Orbit install) are exercised in CI through fakes. **Try it on a throwaway Gmail first and [open an issue](https://github.com/advaidg/orbit-personal-cockpit/issues) when something is off.**
+
+Known limits, stated plainly:
+
+- Browser notifications work while Orbit is open (no Web Push yet). Telegram covers the rest.
+- Only one running instance should poll a given Telegram bot.
+- Gmail is the first connector; Outlook, GitHub, Slack and others are on the roadmap.
+- Pact pages are currently English-only.
+
+## Roadmap
+
+Pacts → shared **recurring** pacts · WhatsApp/iMessage channel · Outlook · Slack/Linear connectors · skill packs you can share · Web Push. The longer product thesis is in [docs/PRODUCT_VISION.md](docs/PRODUCT_VISION.md).
 
 ## Contributing
 
-The cleanest contribution is a new source adapter that emits Orbit `Signal` objects. Start with `server/types.ts`, keep permissions minimal, and make every connector useful without requiring AI.
+The most useful contributions: a new **source adapter** that emits Orbit `Signal` objects, a **channel** (a new chat app), a **pact-page translation**, or a bug report from a real install. Start at `server/types.ts`, keep permissions minimal, and make every feature useful without an AI provider. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-MIT licensed.
+If you try it, I'd love to hear what you'd want it to keep track of.
+
+---
+
+<sub>MIT licensed · Orbit never sends email on your behalf · Your data stays in the database you deployed</sub>

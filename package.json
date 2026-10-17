@@ -8,6 +8,7 @@
     "dev": "concurrently -k \"tsx watch server/index.ts\" \"vite\"",
     "build": "tsc -p tsconfig.server.json && vite build",
     "start": "node dist-server/index.js",
+    "secrets": "node scripts/gen-secrets.mjs",
     "chatgpt:connect": "tsx scripts/chatgpt-connect.ts",
     "check": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run",

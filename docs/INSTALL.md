@@ -73,6 +73,29 @@ docker compose up --build -d
 
 Open `http://localhost:3000`.
 
+## VPS installation (Hostinger, Hetzner, DigitalOcean, any Docker host)
+
+You need a VPS with Docker and a domain whose DNS points at it.
+
+```bash
+git clone https://github.com/advaidg/orbit-personal-cockpit.git
+cd orbit-personal-cockpit
+cp .env.example .env
+npm run secrets            # or: node scripts/gen-secrets.mjs — paste both lines into .env
+```
+
+In `.env` set `DOMAIN=orbit.example.com`, `APP_URL=https://orbit.example.com`, `POSTGRES_PASSWORD` (any long random value), `OWNER_EMAIL`, and your Google credentials. Add `https://orbit.example.com/auth/google/callback` as an authorized redirect URI in Google Cloud. Then:
+
+```bash
+docker compose -f docker-compose.vps.yml up -d --build
+```
+
+Caddy obtains and renews the HTTPS certificate on its own, and only ports 80 and 443 are exposed. Updating is `git pull` then the same command.
+
+### Optional: Telegram, pacts and Orbit-to-Orbit
+
+Pacts work out of the box. To chat with Orbit from your phone, create a bot with @BotFather, set `TELEGRAM_BOT_TOKEN`, redeploy, and link your chat from **Connections**. To share pacts with friends who run their own Orbit, set `FEDERATION_ENABLED=true`. See [PACTS.md](PACTS.md).
+
 ## Removal
 
 Use Orbit’s account-deletion operation before destroying an installation when possible; it attempts to revoke provider tokens and deletes the owner record and associated data. Then delete the Railway project or Docker volume to remove the remaining infrastructure and backups under your control.

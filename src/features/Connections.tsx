@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import { Bell, CalendarDays, Mail, MailX, Send } from 'lucide-react';
 import { api, describeError } from '../api';
-import type { AgentState } from '../types';
+import type { AgentState, TelegramStatus } from '../types';
+import { useLoad } from '../hooks';
 import { Chip, ErrorLine, Notice, PageHead, Toggle } from './ui';
 import { Diagnostics } from './Diagnostics';
 import { Skills } from './Skills';
@@ -44,6 +45,24 @@ function CalendarAccess({ agent }: { agent: AgentState }) {
   );
 }
 
+function TelegramLink({ onChanged, onNotice }: { onChanged: () => void; onNotice: (message: string) => void }) {
+  const status = useLoad(() => api.get<TelegramStatus>('/api/channels/telegram'));
+  const [code, setCode] = useState<{ instructions: string; expiresAt: string } | null>(null);
+  const [error, setError] = useState<{ message: string; action?: string }>();
+  const info = status.data;
+  if (!info?.configured || !info.inbound) return null;
+  const link = async () => { setError(undefined); try { setCode(await api.post('/api/channels/telegram/link')); } catch (failure) { setError(describeError(failure)); } };
+  const unlink = async () => { setError(undefined); try { await api.del('/api/channels/telegram'); setCode(null); onNotice('Telegram disconnected.'); await status.reload(); onChanged(); } catch (failure) { setError(describeError(failure)); } };
+  return (
+    <div className="tg-link">
+      <p className="hint">{info.linked ? 'Linked. Message your bot to ask Orbit things, and approve or reject actions with buttons. Everything goes through the same approval rules as this app.' : 'Chat with Orbit from your phone. Link your private chat with a one-time code — nobody else can use your bot.'}</p>
+      {info.linked ? <button className="btn plain" onClick={unlink}>Disconnect Telegram chat</button> : <button className="btn primary" onClick={link}>Link Telegram chat</button>}
+      {code && !info.linked && <div className="notice info" role="status"><div><strong>{code.instructions}</strong><span>The code works once and expires in ten minutes.</span></div><button className="btn plain" onClick={() => { void status.reload(); onChanged(); }}>I sent it</button></div>}
+      <ErrorLine {...(error ?? {})} />
+    </div>
+  );
+}
+
 function Channels({ agent, onChanged, onNotice }: { agent: AgentState; onChanged: () => void; onNotice: (message: string) => void }) {
   const channels = agent.settings.channels;
   const [chatId, setChatId] = useState(channels.telegram.chatId ?? '');
@@ -63,6 +82,7 @@ function Channels({ agent, onChanged, onNotice }: { agent: AgentState; onChanged
       <Row icon={<Bell size={16} />} title="In-app and browser notifications" help="Notifications appear in the bell. Browser alerts show while Orbit is open." control={<Toggle checked={channels.browser} label="Browser notifications" onChange={browser} />} />
       <Row icon={<Mail size={16} />} title="Email digest" help={agent.channels.emailConfigured ? 'Sent through your SMTP provider to your own address.' : 'Not configured. Set SMTP_URL on this installation first.'} control={<Toggle checked={channels.email} disabled={!agent.channels.emailConfigured} label="Email digest" onChange={(value) => patch({ channels: { email: value } })} />} />
       <Row icon={<Send size={16} />} title="Telegram" help={agent.channels.telegramConfigured ? 'Messages go to your own chat through your bot.' : 'Not configured. Set TELEGRAM_BOT_TOKEN on this installation, then add your chat ID.'} control={<Toggle checked={channels.telegram.enabled} disabled={!agent.channels.telegramConfigured || !channels.telegram.chatId} label="Telegram" onChange={(value) => patch({ channels: { telegram: { enabled: value } } })} />} />
+      <TelegramLink onChanged={onChanged} onNotice={onNotice} />
       {agent.channels.telegramConfigured && <form className="inline-edit" onSubmit={(event) => { event.preventDefault(); void patch({ channels: { telegram: { chatId: chatId.trim(), enabled: !!chatId.trim() } } }, 'Telegram chat saved.'); }}><input aria-label="Telegram chat ID" inputMode="numeric" value={chatId} onChange={(event) => setChatId(event.target.value)} placeholder="Your numeric chat ID" /><button className="btn plain" type="submit">Save chat ID</button></form>}
       <ErrorLine {...(error ?? {})} />
       {results.length > 0 && <ul className="test-results" role="status">{results.map((result) => <li key={result.channel} className={result.ok ? 'ok' : 'bad'}><b>{result.channel}</b> {result.detail}</li>)}</ul>}

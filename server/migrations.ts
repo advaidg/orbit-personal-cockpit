@@ -7,7 +7,7 @@ export interface Migration {
 }
 
 /** Tables backed by the generic JSONB `Collection` helper (see collection.ts). */
-export const COLLECTION_TABLES = [
+const BASE_TABLES = [
   'agent_runs',
   'agent_steps',
   'action_proposals',
@@ -21,6 +21,11 @@ export const COLLECTION_TABLES = [
   'skills',
   'agent_settings'
 ] as const;
+
+/** Added in migration 4: pacts shared with other people, federation peers, and chat-channel links. */
+const PACT_TABLES = ['pacts', 'federation', 'channel_links'] as const;
+
+export const COLLECTION_TABLES = [...BASE_TABLES, ...PACT_TABLES] as const;
 
 export type CollectionTable = (typeof COLLECTION_TABLES)[number];
 
@@ -106,7 +111,12 @@ export const migrations: Migration[] = [
   {
     version: 3,
     name: 'agent runtime, memory, automations and skills collections',
-    sql: COLLECTION_TABLES.map(collectionDdl).join('\n')
+    sql: BASE_TABLES.map(collectionDdl).join('\n')
+  },
+  {
+    version: 4,
+    name: 'pacts, federation and channel links',
+    sql: PACT_TABLES.map(collectionDdl).join('\n')
   }
 ];
 

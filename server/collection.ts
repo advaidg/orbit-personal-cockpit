@@ -85,6 +85,19 @@ export class Collection<T extends Owned> {
     return (rows[0]?.data as T) ?? null;
   }
 
+  /**
+   * Primary-key lookup without an owner. Only for capability-token endpoints that prove access by another means
+   * (a pact link); callers must verify the secret before using the record.
+   */
+  async getAnyOwner(id: string): Promise<T | null> {
+    if (!pool) {
+      const row = memoryTable(this.table).get(id);
+      return row ? ({ ...row.item } as T) : null;
+    }
+    const { rows } = await pool.query(`SELECT data FROM ${this.table} WHERE id=$1`, [id]);
+    return (rows[0]?.data as T) ?? null;
+  }
+
   async findByUniqueKey(userId: string, uniqueKey: string): Promise<T | null> {
     if (!pool) {
       for (const row of memoryTable(this.table).values()) if (row.item.userId === userId && row.uniqueKey === uniqueKey) return { ...row.item } as T;

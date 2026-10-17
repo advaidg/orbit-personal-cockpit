@@ -52,3 +52,14 @@ export interface Diagnostics {
   scheduler: { lastTickAt: string | null }; agent: { enabled: boolean; paused: boolean; automationsKilled: boolean }; environment: { node: string; production: boolean; smtpConfigured: boolean; telegramConfigured: boolean };
 }
 export interface SkillInfo { id: string; skillId: string; manifest: { name: string; description: string; version: string; domains: string[]; permissions: { read: string[]; write: string[] }; env: Array<{ name: string; description: string; required: boolean }>; tools: Array<{ name: string; description: string; effect: string }>; mcp?: { url: string } }; checksum: string; verified: boolean; status: 'installed' | 'enabled' | 'disabled'; allowedDomains: string[]; secretsSet: string[]; missingSecrets: string[]; discoveredTools?: Array<{ name: string; description: string; effect: 'read' | 'write' }> }
+
+export interface PactEvent { at: string; actor: 'owner' | 'counterparty' | 'peer'; action: string; note?: string; date?: string }
+export interface Pact {
+  id: string; direction: 'i_owe' | 'they_owe'; otherPerson: string; otherEmail?: string; action: string; status: 'open' | 'done' | 'declined' | 'canceled';
+  confirmed: boolean; dueAt?: string; requestedDueAt?: string; channel: 'link' | 'federated'; peerId?: string; events: PactEvent[]; createdAt: string; updatedAt: string;
+  link?: { active: boolean; expiresAt?: string; revoked: boolean };
+}
+export interface SharedPact { token: string; url: string; message: string }
+export interface FederationPeer { id: string; url: string; name: string; fingerprint: string; status: 'pending_out' | 'pending_in' | 'trusted' | 'blocked'; lastSeenAt?: string }
+export type FederationInfo = { enabled: false; reason: string } | { enabled: true; url: string; name: string; fingerprint: string; peers: FederationPeer[] };
+export interface TelegramStatus { configured: boolean; inbound: boolean; linked: boolean; bot?: string }

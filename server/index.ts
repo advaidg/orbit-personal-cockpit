@@ -39,6 +39,12 @@ import { automationsRouter } from './api/automations.js';
 import { skillsRouter } from './api/skills.js';
 import { systemRouter } from './api/system.js';
 import { requireAgentEnabled, sendFailure } from './api/http.js';
+import { pactsRouter } from './api/pacts.js';
+import { federationRouter } from './api/federation.js';
+import { channelsRouter } from './api/channels.js';
+import { publicPactRouter } from './pacts/publicRouter.js';
+import { federationPublicRouter } from './federation/router.js';
+import { startTelegramBot } from './telegram/poller.js';
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -61,6 +67,10 @@ const cookieBase = { httpOnly: true, sameSite: 'lax' as const, secure: productio
 app.disable('x-powered-by');
 if(production)app.set('trust proxy',1);
 app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc:["'self'"], scriptSrc:["'self'"], styleSrc:["'self'","'unsafe-inline'",'https://fonts.googleapis.com'], fontSrc:["'self'",'https://fonts.gstatic.com'], imgSrc:["'self'",'data:','https:'], connectSrc:["'self'"], objectSrc:["'none'"], baseUri:["'self'"], frameAncestors:["'none'"], formAction:["'self'",'https://accounts.google.com'] } } }));
+// Public, capability-based surfaces (a pact link, and other Orbit installations). They carry no cookies and sit
+// before the JSON parser so each can enforce its own small body limit.
+app.use('/p', publicPactRouter());
+app.use(federationPublicRouter());
 app.use(express.json());
 app.use(cookieParser());
 app.use(['/auth','/api'], (_req,res,next)=>{res.setHeader('Cache-Control','no-store');next();});
@@ -159,6 +169,9 @@ app.use('/api/agent', requireUser, requireAgentEnabled, agentRouter);
 app.use('/api/automations', requireUser, requireAgentEnabled, automationsRouter);
 app.use('/api/skills', requireUser, requireAgentEnabled, skillsRouter);
 app.use('/api/notifications', requireUser, notificationsRouter);
+app.use('/api/pacts', requireUser, pactsRouter);
+app.use('/api/federation', requireUser, federationRouter);
+app.use('/api/channels', requireUser, channelsRouter);
 app.get('/api/chatgpt/setup',requireUser,async(_req,res,next)=>{try{res.json(await chatGPTSetup(res.locals.userId));}catch(e){next(e);}});
 app.post('/api/chatgpt/import',requireUser,async(req,res)=>{try{const result=await importChatGPTCredentials(res.locals.userId,req.body);await logActivity(res.locals.userId,{type:'connection',status:'success',title:'ChatGPT plan connected',detail:`Connected ${result.email||'the selected ChatGPT account'}.`}).catch(console.error);res.json(result);}catch(e){console.error(e);res.status(400).json({error:e instanceof Error?e.message:'Could not import ChatGPT credentials'});}});
 app.get('/api/chatgpt/models',requireUser,async(_req,res)=>{try{res.json({models:await chatGPTModels(res.locals.userId)});}catch(e){console.error(e);res.status(400).json({error:e instanceof Error?e.message:'Could not load ChatGPT models'});}});
@@ -178,10 +191,12 @@ setServices({ gmail: gmailGateway, calendar: calendarGateway, notifier });
 await loadEnabledSkills().catch(error => logSafe('loading skills', error));
 const worker = startJobWorker();
 const scheduler = startScheduler();
+const telegramBot = startTelegramBot();
 const server = app.listen(port, () => console.log(`Orbit listening on http://localhost:${port}`));
 async function shutdown(signal: string) {
   console.log(`Orbit received ${signal}; finishing in-flight work`);
   scheduler.stop();
+  telegramBot.stop();
   server.close();
   await Promise.race([worker.stop(), new Promise(resolve => setTimeout(resolve, 20_000))]);
   process.exit(0);

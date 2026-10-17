@@ -4,6 +4,7 @@ import { registerGmailTools } from './tools/gmail.js';
 import { registerLocalTools } from './tools/local.js';
 import { registerNotifyTools } from './tools/notify.js';
 import { registerSkillAdminTools } from './tools/skillAdmin.js';
+import { initPacts } from '../pacts/index.js';
 
 let initialized = false;
 
@@ -16,5 +17,6 @@ export function initAgent(): void {
   registerNotifyTools();
   registerSkillAdminTools();
   registerAgentJobs();
+  initPacts();
   initialized = true;
 }
