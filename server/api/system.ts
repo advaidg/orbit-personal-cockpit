@@ -16,6 +16,10 @@ import { getAgentSettings } from '../agent/settings.js';
 import { agentLimits } from '../agent/config.js';
 import { lastTickAt } from '../scheduler.js';
 import { ActionableError } from '../diagnostics.js';
+import { telegramHealth } from '../telegram/poller.js';
+import { isLinked } from '../telegram/link.js';
+import { pactLimits } from '../pacts/config.js';
+import { listPeers } from '../federation/identity.js';
 import { handle, ownerId } from './http.js';
 
 export const systemRouter = express.Router();
@@ -76,6 +80,8 @@ systemRouter.get('/diagnostics', handle(async (_req, res) => {
     ai: { provider: settings.aiProvider, providers: aiProviders(!!chatgpt?.encryptedCredentials).map(({ id, label, configured, external }) => ({ id, label, configured, external })) },
     queue: { queued: jobs.filter((job) => job.status === 'queued').length, running: jobs.filter((job) => job.status === 'running').length, failed24h: recent.filter((job) => job.status === 'failed').length, succeeded24h: recent.filter((job) => job.status === 'succeeded').length, recentFailures: recent.filter((job) => job.status === 'failed').slice(0, 5).map((job) => ({ id: job.id, kind: job.kind, error: job.error, at: job.finishedAt })) },
     scheduler: { lastTickAt: lastTickAt()?.toISOString() ?? null },
+    telegram: { configured: !!getBotToken(), linked: await isLinked(userId), ...telegramHealth() },
+    sharing: { enabled: pactLimits().federationEnabled, trustedPeers: pactLimits().federationEnabled ? (await listPeers(userId)).filter((peer) => peer.status === 'trusted').length : 0, deliveriesQueued: jobs.filter((job) => job.kind === 'federation.send' && (job.status === 'queued' || job.status === 'running')).length, deliveriesFailed24h: recent.filter((job) => job.kind === 'federation.send' && job.status === 'failed').length },
     agent: { enabled: limits.enabled, paused: agentSettings.paused, automationsKilled: agentSettings.automationsKilled },
     environment: { node: process.version, production: process.env.NODE_ENV === 'production', smtpConfigured: !!setting('SMTP_URL'), telegramConfigured: !!getBotToken() }
   });

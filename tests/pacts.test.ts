@@ -111,6 +111,18 @@ describe(`pact actions (${storageMode})`, () => {
     expect(asked.pact.requestedDueAt).toBe(date);
   });
 
+  it('treats a plain date as 5 pm that day in the owner’s timezone, so it never lands a day early', async () => {
+    const owner = await freshOwner();
+    await saveAgentSettings(owner.id, { timezone: 'America/Los_Angeles' });
+    const { pact } = await createPact(owner.id, input);
+    const date = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
+    const moved = await applyAction(owner.id, pact.id, 'counterparty', 'reschedule', { date });
+    const due = new Date(moved.pact.dueAt!);
+    expect(due.getTime()).toBeGreaterThan(Date.parse(`${date}T00:00:00Z`) + 23 * 3600_000); // 5 pm Pacific is after midnight UTC
+    expect(due.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })).toBe(date);
+    expect(due.toLocaleTimeString('en-GB', { timeZone: 'America/Los_Angeles', hour: '2-digit', minute: '2-digit' })).toBe('17:00');
+  });
+
   it('only offers each side the actions that make sense for it', async () => {
     const owner = await freshOwner();
     const { pact } = await createPact(owner.id, input); // counterparty is the doer

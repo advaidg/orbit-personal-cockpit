@@ -4,6 +4,7 @@ import { ActionableError } from '../diagnostics.js';
 import { createNotification } from '../notify.js';
 import { services } from '../agent/services.js';
 import { getAgentSettings } from '../agent/settings.js';
+import { zonedTimeToUtc } from '../agent/time.js';
 import { getUser } from '../store.js';
 import { createCommitment, commitments, dismissCommitment, resolveCommitment } from '../agent/commitments.js';
 import { pactLimits, publicBaseUrl } from './config.js';
@@ -64,9 +65,11 @@ export function pactUrl(token: string): string {
   return `${publicBaseUrl()}/p/${token}`;
 }
 
-function validDue(value: string | undefined): string | undefined {
+/** A plain date (no time) means “by 5 pm that day” in the owner’s timezone, so a link’s date never lands a day early. */
+function validDue(value: string | undefined, timeZone = 'UTC'): string | undefined {
   if (!value) return undefined;
-  const time = Date.parse(value);
+  const plain = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const time = plain ? zonedTimeToUtc({ year: Number(plain[1]), month: Number(plain[2]), day: Number(plain[3]), hour: 17, minute: 0 }, timeZone).getTime() : Date.parse(value);
   if (Number.isNaN(time)) throw new ActionableError('That date is not valid.', { action: 'Pick a date and time.', code: 'invalid_date' });
   if (time > Date.now() + MAX_HORIZON_MS) throw new ActionableError('That date is too far away.', { action: 'Pick a date within two years.', code: 'invalid_date' });
   return new Date(time).toISOString();
@@ -88,7 +91,7 @@ export async function createPact(userId: string, input: NewPact, now = new Date(
   if (!pactLimits().enabled) throw new ActionableError('Pacts are turned off on this installation.', { action: 'Set PACTS_ENABLED=true and redeploy.', code: 'pacts_disabled' });
   if ((await openPactCount(userId)) >= pactLimits().maxOpenPacts) throw new ActionableError('There are too many open pacts.', { action: 'Close some pacts first.', code: 'pact_limit' });
   const channel = input.channel ?? 'link';
-  const dueAt = validDue(input.dueAt);
+  const dueAt = validDue(input.dueAt, (await getAgentSettings(userId)).timezone);
   const id = crypto.randomUUID();
   const person = cleanNote(input.otherPerson, 120);
   const action = cleanNote(input.action, 240);
@@ -161,7 +164,7 @@ export interface ApplyResult {
  */
 export async function applyAction(userId: string, pactId: string, actor: PactActor, action: PactAction, input: ActionInput = {}): Promise<ApplyResult> {
   const note = cleanNote(input.note);
-  const date = action === 'reschedule' ? validDue(typeof input.date === 'string' ? input.date : undefined) : undefined;
+  const date = action === 'reschedule' ? validDue(typeof input.date === 'string' ? input.date : undefined, (await getAgentSettings(userId)).timezone) : undefined;
   if (action === 'reschedule' && !date) throw new ActionableError('Pick the new date.', { action: 'Choose a date and try again.', code: 'invalid_date' });
   let changed = false;
   let appliedEvent: PactEvent | undefined;
@@ -251,8 +254,9 @@ export async function pactForToken(token: string, now = new Date()): Promise<Pac
 }
 
 export async function publicView(pact: Pact): Promise<PublicPact> {
-  const owner = await getUser(pact.userId);
+  const [owner, settings] = await Promise.all([getUser(pact.userId), getAgentSettings(pact.userId)]);
   return {
+    timeZone: settings.timezone,
     ownerName: cleanNote(owner?.name, 80) ?? 'Someone', otherPerson: pact.otherPerson, action: pact.action, dueAt: pact.dueAt, status: pact.status,
     confirmed: pact.confirmed, role: roleOf(pact.direction, 'counterparty'), requestedDueAt: pact.requestedDueAt, expiresAt: pact.linkExpiresAt
   };

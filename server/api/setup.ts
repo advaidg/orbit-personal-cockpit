@@ -124,6 +124,8 @@ setupRouter.put('/telegram', handle(async (req, res) => {
   } catch (error) {
     throw new ActionableError('Telegram did not accept that token.', { action: `Copy it again from @BotFather (or send /token there). ${redact(error instanceof Error ? error.message : '', 120)}`.trim(), code: 'bad_token', retryable: true });
   }
+  // A different bot is a different conversation: the old chat link no longer proves anything about it.
+  if (getBotToken() && getBotToken() !== token) await unlink(ownerId(res));
   await saveSetting(ownerId(res), 'TELEGRAM_BOT_TOKEN', token);
   res.json({ bot: bot.username });
 }));

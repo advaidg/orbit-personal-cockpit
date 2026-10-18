@@ -47,6 +47,8 @@ export interface Pact extends Owned {
 
 /** What a person on the other end of a link is allowed to see. Never includes email or owner internals. */
 export interface PublicPact {
+  /** The owner's timezone, so dates on the page match the day they meant. */
+  timeZone: string;
   ownerName: string;
   otherPerson: string;
   action: string;

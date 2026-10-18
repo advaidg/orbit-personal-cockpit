@@ -58,6 +58,10 @@ function PactRow({ pact, peers, onChanged, onNotice, onShare }: { pact: Pact; pe
         <div className="commit-meta">
           <Chip tone={ownerDoes ? 'warn' : 'info'}>{ownerDoes ? 'You owe' : 'They owe you'}</Chip>
           {pact.channel === 'federated' ? <Chip>Orbit to Orbit{peer ? ` · ${peer.name}` : ''}</Chip> : pact.link?.active ? <Chip tone="good">Link live</Chip> : <Chip tone="bad">Link off</Chip>}
+          {pact.delivery === 'queued' && <Chip tone="warn">Delivering…</Chip>}
+          {pact.delivery === 'failed' && <Chip tone="bad">Not delivered</Chip>}
+          {pact.delivery === 'delivered' && <Chip tone="good">Delivered</Chip>}
+          {open && pact.dueAt && pact.dueAt <= new Date().toISOString() && <Chip tone="bad">Overdue</Chip>}
           {open && pact.confirmed && <Chip tone="good">Confirmed</Chip>}
           {!open && <Chip tone={pact.status === 'done' ? 'good' : 'neutral'}>{pact.status === 'done' ? 'Done' : pact.status === 'declined' ? 'Declined' : 'Withdrawn'}</Chip>}
         </div>

@@ -9,6 +9,11 @@ import { boundChats } from './link.js';
 const POLL_SECONDS = 25;
 const MAX_BACKOFF_MS = 60_000;
 
+interface PollHealth { lastOkAt?: string; lastError?: { at: string; message: string } }
+const health: PollHealth = {};
+/** What the Diagnostics screen shows about the Telegram connection. */
+export const telegramHealth = (): PollHealth => ({ ...health });
+
 export const telegramConfigured = (): boolean => !!getBotToken();
 
 /**
@@ -41,6 +46,7 @@ export function startTelegramBot(): { stop: () => void } {
       try {
         const updates = await telegramApi().getUpdates(offset, POLL_SECONDS, controller.signal);
         delay = 1_000;
+        health.lastOkAt = new Date().toISOString();
         for (const update of updates) {
           offset = Math.max(offset, update.update_id + 1);
           await handleUpdate(update);
@@ -49,6 +55,7 @@ export function startTelegramBot(): { stop: () => void } {
         if (stopped) break;
         if (controller.signal.aborted) continue; // the token changed; start over with the new one
         const status = (error as { status?: number }).status;
+        health.lastError = { at: new Date().toISOString(), message: status === 409 ? 'Another copy of Orbit is polling this bot.' : status === 401 ? 'Telegram rejected the bot token.' : 'Could not reach Telegram.' };
         logSafe(status === 409 ? 'telegram polling conflict (another instance polls this bot)' : 'telegram polling', error);
         await new Promise((resolve) => setTimeout(resolve, delay));
         delay = Math.min(MAX_BACKOFF_MS, delay * (status === 409 ? 4 : 2));

@@ -87,6 +87,20 @@ describe(`Telegram setup (${storageMode})`, () => {
     expect(JSON.parse(status).telegram).toMatchObject({ configured: true, source: 'ui', linked: false, bot: 'orbit_helper_bot' });
   });
 
+  it('forgets the chat link when the bot is replaced, since it belonged to the old bot', async () => {
+    const { owner, url } = await app();
+    restoreTelegram = setTelegramApi(fakeTelegram());
+    await fetch(`${url}/api/setup/telegram`, json('PUT', { token: TOKEN }));
+    const { createLinkCode, consumeLinkCode, isLinked } = await import('../server/telegram/link.js');
+    const { code } = await createLinkCode(owner.id);
+    await consumeLinkCode(code, '4242');
+    expect(await isLinked(owner.id)).toBe(true);
+    await fetch(`${url}/api/setup/telegram`, json('PUT', { token: TOKEN }));
+    expect(await isLinked(owner.id)).toBe(true); // same bot again: nothing to forget
+    await fetch(`${url}/api/setup/telegram`, json('PUT', { token: '555555555:BBEhBP0av28-aBcDeFgHiJkLmNoPqRsTuVw' }));
+    expect(await isLinked(owner.id)).toBe(false);
+  });
+
   it('hands out a one-tap link to the bot, then disconnects cleanly', async () => {
     const { url } = await app();
     restoreTelegram = setTelegramApi(fakeTelegram());

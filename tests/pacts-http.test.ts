@@ -3,6 +3,7 @@ import { freshOwner, resetStorage, storageMode } from './helpers.js';
 import { startApp, type TestServer } from './httpApp.js';
 import { createPact, getPact, rotateLink } from '../server/pacts/service.js';
 import { getCommitment } from '../server/agent/commitments.js';
+import { saveAgentSettings } from '../server/agent/settings.js';
 import type { User } from '../server/types.js';
 
 beforeEach(resetStorage);
@@ -37,6 +38,17 @@ describe(`public pact page (${storageMode})`, () => {
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(html).not.toMatch(/<script/i);
     expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('shows dates in the owner’s timezone, not UTC', async () => {
+    const owner = await freshOwner('Alex');
+    await saveAgentSettings(owner.id, { timezone: 'Pacific/Auckland' });
+    await server?.close();
+    server = await startApp(owner.id);
+    // 23:00 UTC on the 20th is already the 21st in Auckland.
+    const { token } = await createPact(owner.id, { direction: 'they_owe', otherPerson: 'Maya', action: 'send it', dueAt: '2026-12-20T23:00:00.000Z' });
+    const html = await (await fetch(`${server.url}/p/${token}`)).text();
+    expect(html).toContain('Due Dec 21, 2026');
   });
 
   it('escapes anything the owner or an email put into the promise', async () => {

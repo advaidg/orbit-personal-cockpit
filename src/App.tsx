@@ -9,6 +9,8 @@ import { ApprovalCenter } from './features/ApprovalCenter';
 import { AskPanel } from './features/AskPanel';
 import { Automations } from './features/Automations';
 import { Connections } from './features/Connections';
+import { ErrorBoundary } from './features/ErrorBoundary';
+import { GettingStarted } from './features/GettingStarted';
 import { Inbox as InboxView } from './features/Inbox';
 import { Memory } from './features/Memory';
 import { Pacts } from './features/Pacts';
@@ -148,7 +150,8 @@ function DashboardApp() {
       <div className="content">
         {data.mode === 'demo' && <div className="demo-banner"><span><Sparkles size={15}/> You’re exploring a live demo with sample data.</span><button onClick={() => setConnectOpen(true)}>Connect your world <ChevronRight size={15}/></button></div>}
         {paused&&view!=='approvals'&&<div className="notice warn pause-banner" role="status"><div><strong>The agent is paused</strong><span>Schedules, automations and write actions are stopped. Reading and your connections are unaffected.</span></div><button className="btn primary" onClick={togglePause}>Resume</button></div>}
-        {view==='focus'&&focus}
+        <ErrorBoundary key={view} label={view}>
+        {view==='focus'&&<><GettingStarted data={data}/>{focus}</>}
         {view==='inbox'&&<InboxView signals={data.signals} query={query} canDraft={!!agent?.gmail.canDraft&&agent.settings.gmailAccess==='drafts'} focusId={focusId} onChanged={refreshAll} onNotice={notify} onOpenApprovals={()=>go('approvals')}/>}
         {view==='waiting'&&<WaitingOn onChanged={refreshAll} onNotice={notify} onOpenApprovals={()=>go('approvals')}/>}
         {view==='pacts'&&<Pacts onChanged={refreshAll} onNotice={notify}/>}
@@ -157,6 +160,7 @@ function DashboardApp() {
         {view==='memory'&&<Memory onNotice={notify}/>}
         {view==='runs'&&<Runs onChanged={refreshAll} onNotice={notify}/>}
         {view==='connections'&&<Connections agent={agent} onChanged={refreshAll} onNotice={notify} activity={activity} onOpenSettings={()=>setSettingsOpen(true)}/>}
+        </ErrorBoundary>
       </div>
     </main>
     {taskOpen && <TaskModal onClose={()=>setTaskOpen(false)} onSaved={async()=>{setTaskOpen(false);await load();notify('Added to your focus queue')}}/>}

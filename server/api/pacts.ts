@@ -6,6 +6,7 @@ import { pactLimits } from '../pacts/config.js';
 import { applyAction, createPact, deletePact, getPact, listPacts, revokeLink, rotateLink, shareMessage, pactUrl } from '../pacts/service.js';
 import type { Pact } from '../pacts/types.js';
 import { getPeer } from '../federation/identity.js';
+import { listJobs } from '../jobs.js';
 import { handle, ownerId } from './http.js';
 
 export const pactsRouter = express.Router();
@@ -37,7 +38,15 @@ async function shared(pact: Pact, token: string, url: string) {
 pactsRouter.get('/', handle(async (req, res) => {
   const status = typeof req.query.status === 'string' ? (req.query.status.split(',').filter((value) => ['open', 'done', 'declined', 'canceled'].includes(value)) as Pact['status'][]) : undefined;
   const items = await listPacts(ownerId(res), status?.length ? status : undefined);
-  res.json({ pacts: items.map(ownerPact), enabled: pactLimits().enabled, baseUrl: pactUrl('').replace(/\/p\/$/, '') });
+  // For pacts shared Orbit-to-Orbit, say whether the latest message reached the other side.
+  const sends = items.some((pact) => pact.channel === 'federated') ? await listJobs(ownerId(res), { kind: 'federation.send', limit: 200 }) : [];
+  const deliveryOf = (pact: Pact): 'queued' | 'delivered' | 'failed' | undefined => {
+    if (pact.channel !== 'federated') return undefined;
+    const latest = sends.find((job) => (job.payload.body as { pactId?: string } | undefined)?.pactId === (pact.remotePactId ?? pact.id)); // newest first
+    if (!latest) return undefined;
+    return latest.status === 'succeeded' ? (latest.result?.delivered === true ? 'delivered' : 'failed') : latest.status === 'failed' || latest.status === 'canceled' ? 'failed' : 'queued';
+  };
+  res.json({ pacts: items.map((pact) => ({ ...ownerPact(pact), delivery: deliveryOf(pact) })), enabled: pactLimits().enabled, baseUrl: pactUrl('').replace(/\/p\/$/, '') });
 }));
 
 pactsRouter.post('/', handle(async (req, res) => {

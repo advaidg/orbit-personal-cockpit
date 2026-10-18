@@ -34,7 +34,7 @@ const RULES: Array<{ test: RegExp; diagnosis: Diagnosis }> = [
   },
   {
     test: /invalid_grant|unauthorized_client|invalid_client|token has been expired or revoked/i,
-    diagnosis: { code: 'gmail_auth', message: 'Google no longer accepts this connection.', action: 'Open Connections, disconnect the account, and connect it again.', retryable: false }
+    diagnosis: { code: 'gmail_auth', message: 'Google no longer accepts this connection.', action: 'Open Connections, disconnect the account, and connect it again. If this keeps coming back about once a week, your Google app is still in “Testing” mode, where Google expires sign-ins after 7 days: in Google Cloud open OAuth consent screen and choose Publish app (it stays private to you).', retryable: false }
   },
   {
     test: /quota exceeded|rate limit|user-rate-limit|too many requests|\b429\b/i,

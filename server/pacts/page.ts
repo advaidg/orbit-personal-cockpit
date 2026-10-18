@@ -1,7 +1,7 @@
 import type { PactAction, PublicPact } from './types.js';
 
 const esc = (value: string): string => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] as string);
-const day = (iso?: string) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : 'no date set');
+const day = (iso?: string, timeZone = 'UTC') => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone }) : 'no date set');
 
 interface Choice {
   action: PactAction;
@@ -37,7 +37,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.5 Georgia,'Io
 main{width:100%;max-width:520px}
 .mark{font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:0 0 22px;display:flex;align-items:center;gap:8px}
 .mark i{width:9px;height:9px;border-radius:50%;background:var(--accent);display:inline-block;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
-h1{font-size:clamp(28px,7vw,38px);line-height:1.08;margin:0 0 14px;letter-spacing:-.01em;font-weight:700}
+h1{font-size:clamp(28px,7vw,38px);line-height:1.08;margin:0 0 14px;letter-spacing:-.01em;font-weight:700;text-wrap:balance}
 .promise{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--accent);border-radius:4px 14px 14px 4px;padding:18px 20px;margin:0 0 20px}
 .promise p{margin:0;font-size:20px;line-height:1.35}
 .promise small{display:block;margin-top:10px;color:var(--muted);font:14px/1.4 ui-sans-serif,system-ui,sans-serif}
@@ -79,7 +79,7 @@ export function notFoundPage(repoUrl: string): string {
 }
 
 function sentence(pact: PublicPact): string {
-  const due = pact.dueAt ? ` by ${day(pact.dueAt)}` : '';
+  const due = pact.dueAt ? ` by ${day(pact.dueAt, pact.timeZone)}` : '';
   return pact.role === 'doer' ? `${esc(pact.ownerName)} is counting on you to <b>${esc(pact.action)}</b>${due}.` : `${esc(pact.ownerName)} will <b>${esc(pact.action)}</b>${due}.`;
 }
 
@@ -94,13 +94,13 @@ export interface PageState {
 export function pactPage(state: PageState): string {
   const { pact } = state;
   const closed = pact.status !== 'open';
-  const heading = closed ? (pact.status === 'done' ? 'All done.' : 'This one is closed.') : pact.role === 'doer' ? `Hi ${esc(pact.otherPerson.split(' ')[0])}, quick check-in.` : `${esc(pact.ownerName)} is keeping a promise to you.`;
+  const heading = closed ? (pact.status === 'done' ? 'All done.' : 'This one is closed.') : pact.role === 'doer' ? `Hi ${esc(pact.otherPerson.split(' ')[0])}, quick check\u2011in.` : `${esc(pact.ownerName)} is keeping a promise to you.`;
   const status = closed ? `<p class="state closed">Closed — ${esc(pact.status)}.</p>` : pact.confirmed ? '<p class="state">Confirmed.</p>' : '';
-  const requested = pact.requestedDueAt && pact.role === 'requester' ? `<p class="state">You asked for ${esc(day(pact.requestedDueAt))}. ${esc(pact.ownerName)} will see it.</p>` : '';
+  const requested = pact.requestedDueAt && pact.role === 'requester' ? `<p class="state">You asked for ${esc(day(pact.requestedDueAt, pact.timeZone))}. ${esc(pact.ownerName)} will see it.</p>` : '';
   const thanks = state.thanks ? `<div class="thanks" role="status"><strong>${esc(state.thanks)}</strong>${esc(pact.ownerName)} has been told.</div>` : '';
   const error = state.error ? `<div class="thanks" role="alert"><strong>${esc(state.error)}</strong>Nothing was changed.</div>` : '';
   const forms = closed ? '' : `<form method="post" autocomplete="off">${choices(pact).map((choice) => option(choice)).join('')}<details class="note"><summary><b>Add a note</b><span>Optional. ${esc(pact.ownerName)} will read it.</span></summary><div class="more"><label>Note<textarea name="note" maxlength="280" rows="3"></textarea></label><span style="font:13px ui-sans-serif,system-ui,sans-serif;color:var(--muted)">It goes with whichever button you press.</span></div></details></form>`;
-  const body = `<h1>${heading}</h1>${error}${thanks}<div class="promise"><p>${sentence(pact)}</p><small>${pact.dueAt ? `Due ${esc(day(pact.dueAt))}` : 'No date set'}${pact.expiresAt ? ` · link works until ${esc(day(pact.expiresAt))}` : ''}</small></div>${status}${requested}${forms}`;
+  const body = `<h1>${heading}</h1>${error}${thanks}<div class="promise"><p>${sentence(pact)}</p><small>${pact.dueAt ? `Due ${esc(day(pact.dueAt, pact.timeZone))}` : 'No date set'}${pact.expiresAt ? ` · link works until ${esc(day(pact.expiresAt, pact.timeZone))}` : ''}</small></div>${status}${requested}${forms}`;
   return shell(`${pact.ownerName}’s pact`, body, state.repoUrl);
 }
 

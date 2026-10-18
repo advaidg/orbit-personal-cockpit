@@ -193,6 +193,23 @@ describe(`federation outbound and trust (${storageMode})`, () => {
     expect(JSON.parse(delivered[1].body)).toMatchObject({ type: 'pact.update', body: { pactId: pact.id, action: 'done' } });
   });
 
+  it('tells the owner whether a federated pact was delivered', async () => {
+    const user = await owner();
+    server = await startApp(user.id);
+    const peer = await trustRemote(user.id);
+    const { pact } = await createPact(user.id, { direction: 'i_owe', otherPerson: 'Riley', action: 'send the notes', channel: 'federated', peerId: peer.id });
+    const { sendProposal } = await import('../server/federation/outbox.js');
+    const state = async () => (await (await fetch(`${server!.url}/api/pacts`)).json()).pacts.find((item: { id: string }) => item.id === pact.id).delivery;
+    await sendProposal(pact);
+    expect(await state()).toBe('queued');
+    await drain();
+    expect(await state()).toBe('delivered');
+    await setPeerStatus(user.id, peer.id, 'blocked');
+    await applyAction(user.id, pact.id, 'owner', 'done');
+    await drain();
+    expect(await state()).toBe('failed');
+  });
+
   it('does not echo a peer’s own update back to it', async () => {
     const user = await owner();
     await trustRemote(user.id);

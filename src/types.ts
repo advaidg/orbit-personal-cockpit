@@ -49,7 +49,10 @@ export interface Diagnostics {
   connections: Array<{ id: string; provider: 'gmail' | 'calendar'; label: string; accountEmail?: string; status: string; lastSyncedAt?: string; lastSyncError?: string; canDraft?: boolean; canWrite?: boolean }>;
   chatgpt: { connected: boolean; email?: string; selected: boolean }; ai: { provider: string; providers: Array<{ id: string; label: string; configured: boolean; external: boolean }> };
   queue: { queued: number; running: number; failed24h: number; succeeded24h: number; recentFailures: Array<{ id: string; kind: string; error?: { message: string; action: string }; at?: string }> };
-  scheduler: { lastTickAt: string | null }; agent: { enabled: boolean; paused: boolean; automationsKilled: boolean }; environment: { node: string; production: boolean; smtpConfigured: boolean; telegramConfigured: boolean };
+  scheduler: { lastTickAt: string | null };
+  telegram: { configured: boolean; linked: boolean; lastOkAt?: string; lastError?: { at: string; message: string } };
+  sharing: { enabled: boolean; trustedPeers: number; deliveriesQueued: number; deliveriesFailed24h: number };
+  agent: { enabled: boolean; paused: boolean; automationsKilled: boolean }; environment: { node: string; production: boolean; smtpConfigured: boolean; telegramConfigured: boolean };
 }
 export interface SkillInfo { id: string; skillId: string; manifest: { name: string; description: string; version: string; domains: string[]; permissions: { read: string[]; write: string[] }; env: Array<{ name: string; description: string; required: boolean }>; tools: Array<{ name: string; description: string; effect: string }>; mcp?: { url: string } }; checksum: string; verified: boolean; status: 'installed' | 'enabled' | 'disabled'; allowedDomains: string[]; secretsSet: string[]; missingSecrets: string[]; discoveredTools?: Array<{ name: string; description: string; effect: 'read' | 'write' }> }
 
@@ -58,6 +61,7 @@ export interface Pact {
   id: string; direction: 'i_owe' | 'they_owe'; otherPerson: string; otherEmail?: string; action: string; status: 'open' | 'done' | 'declined' | 'canceled';
   confirmed: boolean; dueAt?: string; requestedDueAt?: string; channel: 'link' | 'federated'; peerId?: string; events: PactEvent[]; createdAt: string; updatedAt: string;
   link?: { active: boolean; expiresAt?: string; revoked: boolean };
+  delivery?: 'queued' | 'delivered' | 'failed';
 }
 export interface SharedPact { token: string; url: string; message: string }
 export interface FederationPeer { id: string; url: string; name: string; fingerprint: string; status: 'pending_out' | 'pending_in' | 'trusted' | 'blocked'; lastSeenAt?: string }

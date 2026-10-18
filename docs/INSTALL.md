@@ -25,7 +25,7 @@ Set `OWNER_EMAIL` to the exact Google address permitted to enter this installati
 In a Google Cloud project owned by the installer:
 
 1. Enable Gmail API.
-2. Configure the OAuth consent screen. For personal testing, keep it in Testing and add `OWNER_EMAIL` as a test user.
+2. Configure the OAuth consent screen (User type: External) and add `OWNER_EMAIL` as a test user. **Then press “Publish app” to move it from *Testing* to *In production*.** This matters: while an app is in Testing, Google expires its sign-ins after **7 days**, so Gmail sync would quietly stop every week. Publishing does not make Orbit public — `OWNER_EMAIL` still locks the installation to you, and Google only shows an *“unverified app”* warning once when you connect (choose *Advanced → Go to your app*). That warning appears because Google has not reviewed *your* private app, which is expected for a self-hosted install.
 3. Create an OAuth client of type Web application.
 4. Add `https://YOUR_ORBIT_DOMAIN/auth/google/callback` as an authorized redirect URI.
 5. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` on the Orbit service.

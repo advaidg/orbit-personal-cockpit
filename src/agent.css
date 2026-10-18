@@ -364,3 +364,19 @@ select.btn { padding-right: 8px; }
 .setup-advanced { margin-top: 4px; border: 1px dashed #353d31; border-radius: 12px; padding: 4px 14px; }
 .setup-advanced > summary { cursor: pointer; padding: 10px 0; font-size: 12.5px; color: var(--text-soft, #a3ac98); }
 .setup-advanced[open] > summary { margin-bottom: 6px; }
+
+/* ── Getting started ───────────────────────────────────────────────────── */
+.getting-started { margin: 0 0 20px; padding: 18px 20px; background: #12160f; border: 1px solid #2c3328; border-radius: var(--radius, 14px); }
+.getting-started header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
+.getting-started h2 { margin: 6px 0 0; font-size: 18px; }
+.getting-started ul { list-style: none; margin: 0; padding: 0; display: grid; }
+.getting-started li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 0; border-top: 1px solid #222a1e; }
+.getting-started li:first-child { border-top: 0; }
+.getting-started li svg { color: #5d6b52; }
+.getting-started li.done svg { color: var(--acid, #c8f060); }
+.getting-started li.done strong { color: var(--text-soft, #a3ac98); text-decoration: line-through; text-decoration-color: #4a5640; }
+.getting-started li div { display: grid; gap: 2px; min-width: 0; }
+.getting-started small { color: var(--text-soft, #a3ac98); font-size: 12.5px; line-height: 1.45; }
+.getting-started .icon-btn { background: transparent; border: 0; color: var(--text-soft, #a3ac98); cursor: pointer; padding: 6px; border-radius: 8px; }
+.getting-started .icon-btn:hover, .getting-started .icon-btn:focus-visible { color: var(--text, #ecf0e4); background: #1b2117; outline: none; }
+@media (max-width: 560px) { .getting-started li { grid-template-columns: 22px minmax(0, 1fr); } .getting-started li .btn { grid-column: 2; justify-self: start; } }

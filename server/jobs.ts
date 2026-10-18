@@ -139,11 +139,13 @@ export async function getJob(id: string, userId?: string): Promise<Job | null> {
 export async function listJobs(userId: string, options: { kind?: string; status?: JobStatus[]; limit?: number } = {}): Promise<Job[]> {
   const limit = options.limit ?? 30;
   if (!pool) {
+    // Newest first. Jobs created in the same millisecond keep their creation order (later one first).
     return [...memoryJobs.values()]
-      .filter((job) => job.userId === userId && (!options.kind || job.kind === options.kind) && (!options.status || options.status.includes(job.status)))
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((job, index) => ({ job, index }))
+      .filter(({ job }) => job.userId === userId && (!options.kind || job.kind === options.kind) && (!options.status || options.status.includes(job.status)))
+      .sort((a, b) => b.job.createdAt.localeCompare(a.job.createdAt) || b.index - a.index)
       .slice(0, limit)
-      .map((job) => ({ ...job }));
+      .map(({ job }) => ({ ...job }));
   }
   const params: unknown[] = [userId];
   let sql = 'SELECT * FROM jobs WHERE user_id=$1';
