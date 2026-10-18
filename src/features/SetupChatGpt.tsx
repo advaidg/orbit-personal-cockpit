@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { usePoll } from '../hooks';
 import { Copy } from 'lucide-react';
 import { api, describeError } from '../api';
 import type { SetupStatus } from '../types';
@@ -13,6 +14,7 @@ export function SetupChatGpt({ status, onChanged, onNotice }: Props) {
   const active = status.active === 'chatgpt-subscription';
   const [hostId, setHostId] = useState('');
   const [signInUrl, setSignInUrl] = useState('');
+  const [automatic, setAutomatic] = useState(false);
   const [pasted, setPasted] = useState('');
   const [models, setModels] = useState<Model[]>([]);
   const [model, setModel] = useState(status.chatgpt.model ?? '');
@@ -27,8 +29,10 @@ export function SetupChatGpt({ status, onChanged, onNotice }: Props) {
   }, [connected]);
 
   const start = () => run(async () => {
-    const result = await api.post<{ url: string }>('/api/setup/chatgpt/start');
+    setAutomatic(false);
+    const result = await api.post<{ url: string; automatic: boolean }>('/api/setup/chatgpt/start');
     setSignInUrl(result.url);
+    setAutomatic(result.automatic);
     setPasted('');
     window.open(result.url, '_blank', 'noopener,noreferrer');
   });
@@ -39,6 +43,8 @@ export function SetupChatGpt({ status, onChanged, onNotice }: Props) {
     onNotice(`Connected ${result.email ?? 'ChatGPT'}. Pick a model below.`);
     onChanged();
   });
+  // Orbit on your own computer: the browser comes straight back, so just watch for it.
+  usePoll(onChanged, 2_000, !!signInUrl && automatic && !connected);
   const prepare = () => run(async () => { setHostId((await api.get<{ hostId: string }>('/api/chatgpt/setup')).hostId); });
   const copy = async () => { try { await navigator.clipboard.writeText(command); onNotice('Command copied.'); } catch { onNotice('Copy failed — select the command and copy it yourself.'); } };
   const importFile = (file?: File) => {
@@ -68,16 +74,23 @@ export function SetupChatGpt({ status, onChanged, onNotice }: Props) {
   return (
     <div className="setup-form">
       <Notice tone="info" title="Uses your ChatGPT plan instead of an API key (OpenAI preview)">OpenAI decides which plans and models are eligible, and may change this. Orbit never sees your password.</Notice>
-      <ol className="setup-steps">
-        <li><b>Sign in with ChatGPT</b> — opens OpenAI in a new tab. Approve access.</li>
-        <li>Your browser then shows <i>“This site can’t be reached”</i> at an address starting with <code>http://127.0.0.1</code>. <b>That is expected.</b> Copy the whole address from the address bar.</li>
-        <li>Paste it below. Orbit finishes the sign-in on the server.</li>
-      </ol>
+      {automatic ? (
+        <ol className="setup-steps">
+          <li><b>Sign in with ChatGPT</b> — opens OpenAI in a new tab. Approve access.</li>
+          <li>You come straight back to Orbit and see “ChatGPT connected”. This page updates by itself.</li>
+        </ol>
+      ) : (
+        <ol className="setup-steps">
+          <li><b>Sign in with ChatGPT</b> — opens OpenAI in a new tab. Approve access.</li>
+          <li>Because Orbit runs on a server, not on this computer, your browser then shows <i>“This site can’t be reached”</i> at an address starting with <code>http://127.0.0.1</code>. <b>That is expected.</b> Copy the whole address from the address bar.</li>
+          <li>Paste it below. Orbit finishes the sign-in on the server.</li>
+        </ol>
+      )}
       <div className="row-gap">
         <button className="btn primary" type="button" disabled={busy} onClick={start}>{signInUrl ? 'Start again' : 'Sign in with ChatGPT'}</button>
         {signInUrl && <a className="btn plain" href={signInUrl} target="_blank" rel="noopener noreferrer">Open OpenAI sign-in again</a>}
       </div>
-      {signInUrl && (
+      {signInUrl && !automatic && (
         <form className="inline-edit" onSubmit={(event) => { event.preventDefault(); finish(); }}>
           <input aria-label="Address from your browser" autoComplete="off" spellCheck={false} value={pasted} onChange={(event) => setPasted(event.target.value)} onPaste={(event) => { const text = event.clipboardData.getData('text'); if (text.startsWith('http://127.0.0.1')) { setPasted(text); window.setTimeout(() => finish(text), 0); } }} placeholder="http://127.0.0.1:…/auth/callback?code=…" />
           <button className="btn primary" type="submit" disabled={busy || !pasted.trim()}>{busy ? 'Finishing…' : 'Finish'}</button>

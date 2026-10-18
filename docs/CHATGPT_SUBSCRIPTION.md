@@ -10,6 +10,8 @@ Orbit supports OpenAI's Sign in with ChatGPT token-sharing preview for eligible 
 4. Paste it into Orbit. Orbit finishes the sign-in on the server, checks the identity with OpenAI, and stores the credentials encrypted.
 5. Pick one of the models returned for your account and press **Use ChatGPT plan**.
 
+**If Orbit runs on your own computer** (`APP_URL` is `http://localhost:…`), step 3 disappears: OpenAI sends your browser straight back to Orbit, which finishes the sign-in by itself and shows “ChatGPT connected”. OpenAI only accepts a `127.0.0.1` return address, which is why a cloud-hosted Orbit needs the paste step: nothing is listening on `127.0.0.1` in your browser’s computer except Orbit when it runs there.
+
 The address you paste carries a one-time code. Orbit only accepts one that matches the sign-in it started (same state value, same loopback address), uses the code once, and keeps the PKCE secret on the server. Each installation has a stable random host ID, so credentials for one installation cannot be used by another.
 
 **Fallback:** if you cannot paste an address (for example on a locked-down phone), the same panel offers the older helper, which runs one command on your own computer and uploads a credentials file. See `scripts/chatgpt-connect.ts`.

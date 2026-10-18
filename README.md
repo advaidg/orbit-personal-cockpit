@@ -9,7 +9,7 @@
 
 [![MIT](https://img.shields.io/badge/license-MIT-c8f060?style=flat-square)](LICENSE)
 [![Self-hosted](https://img.shields.io/badge/self--hosted-your%20cloud%2C%20your%20data-1d1a16?style=flat-square)](#install-it-in-your-own-cloud)
-[![Tests](https://img.shields.io/badge/tests-288%20passing-2f6b4f?style=flat-square)](#how-its-built)
+[![Tests](https://img.shields.io/badge/tests-291%20passing-2f6b4f?style=flat-square)](#how-its-built)
 [![No sending](https://img.shields.io/badge/email%20sending-impossible%20by%20design-b4411f?style=flat-square)](#safety-you-can-verify)
 
 <p align="center">
@@ -175,7 +175,7 @@ Telegram / Ask Orbit / Automations ──┴─▶ proposals ──▶ policy �
 - **Durable job queue** on Postgres (`FOR UPDATE SKIP LOCKED`, backoff, idempotency keys, stale-job recovery, cancel).
 - **Versioned migrations** with an advisory lock; legacy installs adopt them automatically.
 - **Policy engine** is a pure function over risk classes (read · local · notify · draft · calendar · send · delete · financial · shell · skill). Env sets the ceiling; the UI can only be stricter.
-- **Two storage modes with identical behavior**: in-memory for demos, Postgres for real use. The same 288 tests run against both.
+- **Two storage modes with identical behavior**: in-memory for demos, Postgres for real use. The same 291 tests run against both.
 - **Small surface**: 116 KB gzipped JS, no telemetry, no third-party scripts.
 
 ```bash
@@ -186,7 +186,7 @@ npm run check     # strict type-check: app, server, tests
 
 ## Status — read this before you rely on it
 
-Orbit is **early software, built in the open**. The core is solid: 288 automated tests covering the approval flow, policy, idempotency, retries, prompt-injection handling, cross-account isolation, pact links, federation signing/replay/forgery, and Telegram linking. But the integrations that need *your* accounts (real Google OAuth, a real Telegram bot, a second real Orbit install) are exercised in CI through fakes. **Try it on a throwaway Gmail first and [open an issue](https://github.com/advaidg/orbit-personal-cockpit/issues) when something is off.**
+Orbit is **early software, built in the open**. The core is solid: 291 automated tests covering the approval flow, policy, idempotency, retries, prompt-injection handling, cross-account isolation, pact links, federation signing/replay/forgery, and Telegram linking. But the integrations that need *your* accounts (real Google OAuth, a real Telegram bot, a second real Orbit install) are exercised in CI through fakes. **Try it on a throwaway Gmail first and [open an issue](https://github.com/advaidg/orbit-personal-cockpit/issues) when something is off.**
 
 Known limits, stated plainly:
 

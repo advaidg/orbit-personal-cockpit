@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { freshOwner, resetStorage, storageMode } from './helpers.js';
 import { startApp, type TestServer } from './httpApp.js';
 import { PendingFlows } from '../server/oauth/pending.js';
-import { beginChatGPTAuth, finishChatGPTAuth, resetChatGptFlows, setChatGptHooks, type Exchange } from '../server/oauth/chatgptAuth.js';
+import { beginChatGPTAuth, finishChatGPTAuth, finishChatGPTFromCallback, runsOnThisComputer, resetChatGptFlows, setChatGptHooks, type Exchange } from '../server/oauth/chatgptAuth.js';
 import { beginOpenRouterAuth, finishOpenRouterAuth, resetOpenRouterFlows, setOpenRouterExchange } from '../server/oauth/openrouterAuth.js';
 import { importChatGPTCredentials, chatGPTSetup, type ChatGPTCredentials } from '../server/chatgpt.js';
 import { setting } from '../server/installationConfig.js';
@@ -74,6 +74,50 @@ describe(`ChatGPT plan sign-in without a command line (${storageMode})`, () => {
     expect(seen[0]).toMatchObject({ code: 'one-time-code', clientId: 'client_issued_by_openai', redirectUri: started.redirectUri });
     expect(imported[0]).toMatchObject({ subject: 'user-123', client_id: 'client_issued_by_openai', ext_agent_host_id: (await chatGPTSetup(owner.id)).hostId, refresh_token: 'refresh-xyz' });
     expect(imported[0].scopes).toContain('chatgpt.tokens.use.direct');
+  });
+
+  it('comes straight back to Orbit when it runs on the same computer, and needs a paste when it runs elsewhere', async () => {
+    const owner = await freshOwner();
+    process.env.APP_URL = 'https://orbit.example.test';
+    expect(runsOnThisComputer()).toBe(false);
+    expect((await beginChatGPTAuth(owner.id)).automatic).toBe(false);
+    process.env.APP_URL = 'http://localhost:3000';
+    process.env.PORT = '3456';
+    expect(runsOnThisComputer()).toBe(true);
+    const local = await beginChatGPTAuth(owner.id);
+    expect(local).toMatchObject({ automatic: true, redirectUri: 'http://127.0.0.1:3456/auth/callback' });
+  });
+
+  it('finishes from Orbit’s own callback by state alone, once, and rejects anything else', async () => {
+    hooks();
+    process.env.APP_URL = 'http://localhost:3000';
+    const owner = await freshOwner();
+    const started = await beginChatGPTAuth(owner.id);
+    const state = stateOf(started.url);
+    await expect(finishChatGPTFromCallback('forged', `state=forged&code=c&client_id=x`)).rejects.toThrow(/expired or was never started/);
+    expect(seen).toHaveLength(0);
+    const result = await finishChatGPTFromCallback(state, `state=${state}&code=one-time-code&client_id=client_issued_by_openai`);
+    expect(result.email).toBe('me@example.test');
+    expect(seen).toHaveLength(1);
+    await expect(finishChatGPTFromCallback(state, `state=${state}&code=one-time-code&client_id=client_issued_by_openai`)).rejects.toThrow(/expired or was never started/);
+  });
+
+  it('serves a plain success or failure page at /auth/callback without a session', async () => {
+    hooks();
+    process.env.APP_URL = 'http://localhost:3000';
+    const owner = await freshOwner();
+    server = await startApp(owner.id);
+    const started = await beginChatGPTAuth(owner.id);
+    const state = stateOf(started.url);
+    const bad = await fetch(`${server.url}/auth/callback?state=nope&code=c&client_id=x`);
+    expect(bad.status).toBe(400);
+    expect(await bad.text()).toContain('Sign-in not finished');
+    const ok = await fetch(`${server.url}/auth/callback?state=${state}&code=one-time-code&client_id=client_issued_by_openai`);
+    expect(ok.status).toBe(200);
+    const html = await ok.text();
+    expect(html).toContain('ChatGPT connected');
+    expect(html).not.toContain('access-abc');
+    expect(html).not.toContain('refresh-xyz');
   });
 
   it('accepts a code only once', async () => {

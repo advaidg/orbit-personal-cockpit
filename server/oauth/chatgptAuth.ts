@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { ActionableError } from '../diagnostics.js';
 import { chatGPTSetup, importChatGPTCredentials, type ChatGPTCredentials } from '../chatgpt.js';
+import { publicBaseUrl } from '../pacts/config.js';
 import { PendingFlows } from './pending.js';
 import { newPkce, randomToken } from './pkce.js';
 
@@ -9,11 +10,23 @@ const RESOURCE = 'https://api.openai.com/v1';
 const SCOPES = ['openid', 'profile', 'email', 'offline_access', 'resource.invoke', 'chatgpt.tokens.use.direct'];
 const DYNAMIC_CLIENT = 'dynamic_agent_client';
 
-interface Attempt { state: string; nonce: string; verifier: string; redirectUri: string; hostId: string }
+interface Attempt { state: string; nonce: string; verifier: string; redirectUri: string; hostId: string; automatic: boolean }
 const attempts = new PendingFlows<Attempt>();
+/** Lets the callback page find an attempt from its state value alone (the browser lands on 127.0.0.1, which carries no session cookie). */
+const byState = new PendingFlows<string>();
 
 export function resetChatGptFlows(): void {
   attempts.clear();
+  byState.clear();
+}
+
+/** True when Orbit runs on the same computer as the browser, so the sign-in can come straight back to it. */
+export function runsOnThisComputer(env: Record<string, string | undefined> = process.env): boolean {
+  try {
+    return ['localhost', '127.0.0.1', '[::1]'].includes(new URL(publicBaseUrl(env)).hostname);
+  } catch {
+    return false;
+  }
 }
 
 export interface Exchange {
@@ -58,23 +71,39 @@ export function setChatGptHooks(next: Partial<Hooks>): () => void {
 export interface Started {
   url: string;
   redirectUri: string;
+  /** True when the browser will return to Orbit by itself; false when the owner has to paste the address back. */
+  automatic: boolean;
 }
 
 /**
- * Step 1: build the OpenAI sign-in address. The redirect goes to a loopback address nobody is listening on; the
- * browser will show "can't connect", and the address in its bar carries the one-time code to paste back.
+ * Step 1: build the OpenAI sign-in address. OpenAI only accepts a 127.0.0.1 redirect. When Orbit runs on the owner's
+ * own computer that address is Orbit itself, so the browser returns here and everything finishes by itself. On a
+ * cloud host nothing listens there: the browser shows "can't connect" and the owner pastes the address back.
  */
 export async function beginChatGPTAuth(userId: string): Promise<Started> {
   const { hostId } = await chatGPTSetup(userId);
   const pkce = newPkce();
-  const attempt: Attempt = { state: randomToken(), nonce: randomToken(), verifier: pkce.verifier, redirectUri: `http://127.0.0.1:${49152 + crypto.randomInt(16000)}/auth/callback`, hostId };
+  const automatic = runsOnThisComputer();
+  const port = automatic ? Number(process.env.PORT || 3000) : 49152 + crypto.randomInt(16000);
+  const attempt: Attempt = { state: randomToken(), nonce: randomToken(), verifier: pkce.verifier, redirectUri: `http://127.0.0.1:${port}/auth/callback`, hostId, automatic };
   attempts.put(userId, attempt);
+  byState.put(attempt.state, userId);
   const url = new URL(`${CHATGPT_ISSUER}/api/accounts/authorize`);
   url.search = new URLSearchParams({
     response_type: 'code', client_id: DYNAMIC_CLIENT, redirect_uri: attempt.redirectUri, scope: SCOPES.join(' '), resource: RESOURCE,
     state: attempt.state, nonce: attempt.nonce, code_challenge: pkce.challenge, code_challenge_method: 'S256', agent_name_hint: 'Orbit', ext_agent_host_id: hostId
   }).toString();
-  return { url: url.toString(), redirectUri: attempt.redirectUri };
+  return { url: url.toString(), redirectUri: attempt.redirectUri, automatic };
+}
+
+/** Step 2 (automatic): the browser came back to Orbit's own /auth/callback with the code in the query string. */
+export async function finishChatGPTFromCallback(state: string, queryString: string): Promise<{ email?: string }> {
+  const userId = state ? byState.peek(state) : undefined;
+  const attempt = userId ? attempts.peek(userId) : undefined;
+  if (!userId || !attempt || attempt.state !== state) throw new ActionableError('That sign-in expired or was never started.', { action: 'Go back to Orbit and press “Sign in with ChatGPT” again.', code: 'chatgpt_expired' });
+  const result = await finishChatGPTAuth(userId, `${attempt.redirectUri}?${queryString}`);
+  byState.take(state);
+  return result;
 }
 
 /** Step 2: the owner pastes the address their browser ended on. Validate it strictly, then finish the sign-in. */

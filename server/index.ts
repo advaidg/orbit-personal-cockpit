@@ -42,6 +42,7 @@ import { listPacts } from './pacts/service.js';
 import { listPeers } from './federation/identity.js';
 import { setting } from './installationConfig.js';
 import { getBotToken } from './telegram/api.js';
+import { chatgptCallbackRouter } from './oauth/callbackRouter.js';
 import { forbidDemo, requireAgentEnabled, sendFailure } from './api/http.js';
 import { pactsRouter } from './api/pacts.js';
 import { federationRouter } from './api/federation.js';
@@ -77,6 +78,7 @@ if(production)app.set('trust proxy',1);
 app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc:["'self'"], scriptSrc:["'self'"], styleSrc:["'self'","'unsafe-inline'",'https://fonts.googleapis.com'], fontSrc:["'self'",'https://fonts.gstatic.com'], imgSrc:["'self'",'data:','https:'], connectSrc:["'self'"], objectSrc:["'none'"], baseUri:["'self'"], frameAncestors:["'none'"], formAction:["'self'",'https://accounts.google.com'] } } }));
 // Public, capability-based surfaces (a pact link, and other Orbit installations). They carry no cookies and sit
 // before the JSON parser so each can enforce its own small body limit.
+app.use(chatgptCallbackRouter());
 app.use('/p', publicPactRouter());
 app.use(federationPublicRouter());
 app.use(express.json());

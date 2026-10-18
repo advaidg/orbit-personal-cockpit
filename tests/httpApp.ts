@@ -7,6 +7,7 @@ import { federationRouter } from '../server/api/federation.js';
 import { channelsRouter } from '../server/api/channels.js';
 import { sendFailure } from '../server/api/http.js';
 import { setupRouter } from '../server/api/setup.js';
+import { chatgptCallbackRouter } from '../server/oauth/callbackRouter.js';
 
 export interface TestServer {
   url: string;
@@ -16,6 +17,7 @@ export interface TestServer {
 /** The same routers the real app mounts, with the signed-in owner fixed to `ownerId`. */
 export async function startApp(ownerId: string): Promise<TestServer> {
   const app = express();
+  app.use(chatgptCallbackRouter());
   app.use('/p', publicPactRouter());
   app.use(federationPublicRouter());
   app.use(express.json());
