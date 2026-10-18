@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { isAbsolute, join, normalize } from './posix.js';
 
 const HOME_MARK = '~';
 
@@ -6,15 +6,15 @@ const HOME_MARK = '~';
 export function resolvePath(value: string, cwd: string | undefined): string {
   const raw = value.trim();
   if (!raw) return '';
-  if (raw === HOME_MARK || raw.startsWith(`${HOME_MARK}/`) || raw.startsWith('$HOME') || raw.startsWith('${HOME}')) return path.posix.normalize(raw.replace(/^\$\{?HOME\}?/, HOME_MARK));
-  if (path.posix.isAbsolute(raw)) return path.posix.normalize(raw);
-  return path.posix.normalize(path.posix.join(cwd && path.posix.isAbsolute(cwd) ? cwd : '/__unknown__', raw));
+  if (raw === HOME_MARK || raw.startsWith(`${HOME_MARK}/`) || raw.startsWith('$HOME') || raw.startsWith('${HOME}')) return normalize(raw.replace(/^\$\{?HOME\}?/, HOME_MARK));
+  if (isAbsolute(raw)) return normalize(raw);
+  return normalize(join(cwd && isAbsolute(cwd) ? cwd : '/__unknown__', raw));
 }
 
 /** True when `target` is the project directory itself or inside it. */
 export function insideProject(target: string, cwd: string | undefined): boolean {
-  if (!cwd || !path.posix.isAbsolute(cwd)) return false;
-  const base = path.posix.normalize(cwd).replace(/\/+$/, '');
+  if (!cwd || !isAbsolute(cwd)) return false;
+  const base = normalize(cwd).replace(/\/+$/, '');
   const resolved = resolvePath(target, cwd);
   return resolved === base || resolved.startsWith(`${base}/`);
 }

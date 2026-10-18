@@ -9,7 +9,7 @@
 
 [![MIT](https://img.shields.io/badge/license-MIT-c8f060?style=flat-square)](LICENSE)
 [![Self-hosted](https://img.shields.io/badge/self--hosted-your%20cloud%2C%20your%20data-1d1a16?style=flat-square)](#install-it-in-your-own-cloud)
-[![Tests](https://img.shields.io/badge/tests-434%20passing-2f6b4f?style=flat-square)](#how-its-built)
+[![Tests](https://img.shields.io/badge/tests-436%20passing-2f6b4f?style=flat-square)](#how-its-built)
 [![No sending](https://img.shields.io/badge/email%20sending-impossible%20by%20design-b4411f?style=flat-square)](#safety-you-can-verify)
 
 <p align="center">
@@ -42,6 +42,8 @@ On top of that:
 <p align="center">
   <img src="docs/images/guard-agents.jpg" alt="Orbit Agents: per-agent token budgets, strictness, and the activity log" width="860">
 </p>
+
+**Try the judge in your browser first:** every Orbit serves a public playground at `/playground.html` (or run `npm run dev` and open <http://localhost:5173/playground.html>). Type a command, pick a strictness, and see whether it passes, asks your phone, or is refused, with a breakdown of how it was read. It runs entirely client-side, and each result has a shareable link.
 
 ### Connect Claude Code in two minutes
 
@@ -241,7 +243,7 @@ npm run check     # strict type-check: app, server, tests
 
 ## Status — read this before you rely on it
 
-Orbit is **early software, built in the open**. The core is solid: 434 automated tests covering Agent Guard (including the real hook program run against a live server), the approval flow, policy, idempotency, retries, prompt-injection handling, cross-account isolation, pact links, federation signing/replay/forgery, and Telegram linking. But the integrations that need *your* accounts (real Google OAuth, a real Telegram bot, a second real Orbit install) are exercised in CI through fakes, and Guard has been tested with simulated Claude Code hook events and the real hook program, not yet across many Claude Code versions. **Try it on a throwaway Gmail first and [open an issue](https://github.com/advaidg/orbit-personal-cockpit/issues) when something is off.**
+Orbit is **early software, built in the open**. The core is solid: 436 automated tests covering Agent Guard (including the real hook program run against a live server), the approval flow, policy, idempotency, retries, prompt-injection handling, cross-account isolation, pact links, federation signing/replay/forgery, and Telegram linking. But the integrations that need *your* accounts (real Google OAuth, a real Telegram bot, a second real Orbit install) are exercised in CI through fakes, and Guard has been verified end to end with the real Claude Code (2.1.302): a safe call passing silently, a risky call held and then denied (Claude reports it was blocked and why), and one approved with "always allow here" and then passing silently on the next run. I haven't tested other Claude Code versions or other agents. **Try it on a throwaway Gmail first and [open an issue](https://github.com/advaidg/orbit-personal-cockpit/issues) when something is off.**
 
 Known limits, stated plainly:
 

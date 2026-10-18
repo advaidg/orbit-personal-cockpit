@@ -12,9 +12,9 @@ It also records every call (secrets redacted, file contents never stored), enfor
 
 Details I care about: if Orbit is unreachable the hook falls back to Claude Code's own prompt (an outage never becomes "allow"); a command is judged by its worst part, so `ls && git push --force` and `$(rm -rf x)` don't slip through; "always allow this here" stores a hash, not the command; allow rules can't be a bare wildcard and never cover chained commands.
 
-What it is not: a sandbox. It's a safety net for overeager agents and honest mistakes. Command analysis is heuristic, and I've tested it with simulated hook events and the real hook program against a running server, not yet across many Claude Code versions. Feedback on what it misses is the most useful thing you could give me.
+What it is not: a sandbox. It's a safety net for overeager agents and honest mistakes. Command analysis is heuristic, and I've verified it end to end with the real Claude Code 2.1.302 (silent allow, held-and-denied, approved-and-remembered), not yet across other versions or agents. Feedback on what it misses is the most useful thing you could give me.
 
-Self-hosted (Railway / a VPS with the included Caddy compose file / Docker), MIT, ~430 tests. https://github.com/advaidg/orbit-personal-cockpit
+There's a browser playground that runs the same classifier client-side (/playground.html on any Orbit): type a command, see the verdict and how it was read. Self-hosted (Railway / a VPS with the included Caddy compose file / Docker), MIT, ~430 tests. https://github.com/advaidg/orbit-personal-cockpit
 
 ## LinkedIn
 

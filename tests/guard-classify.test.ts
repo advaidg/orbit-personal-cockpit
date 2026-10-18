@@ -164,3 +164,23 @@ describe('file and other tools', () => {
     expect(() => classify({ tool: 'Read', input: {}, cwd: undefined }, 'balanced')).not.toThrow();
   });
 });
+
+describe('the classifier stays usable in a browser', () => {
+  it('has no Node-only imports, so the playground can run the very same code', async () => {
+    const { readFileSync } = await import('node:fs');
+    for (const file of ['classify', 'paths', 'shell', 'posix', 'types']) {
+      const source = readFileSync(new URL(`../server/guard/${file}.ts`, import.meta.url), 'utf8');
+      const imports = [...source.matchAll(/^import[^;]*from\s+'([^']+)'/gm)].map((match) => match[1]);
+      for (const specifier of imports) expect(specifier.startsWith('.') || specifier.startsWith('node:') === false, `${file}.ts imports ${specifier}`).toBe(true);
+      expect(imports.filter((specifier) => specifier.startsWith('node:')), `${file}.ts`).toEqual([]);
+    }
+  });
+
+  it('normalises paths the same way node would', async () => {
+    const posix = await import('../server/guard/posix.js');
+    const nodePath = (await import('node:path')).posix;
+    for (const value of ['/a/b/../c', '/a//b/./c/', 'a/../../b', '/', '..', './x', '/a/b/c/../../..', '/../x']) expect(posix.normalize(value), value).toBe(nodePath.normalize(value).replace(/(.)\/$/, '$1'));
+    expect(posix.join('/home/dev', '../other/x')).toBe(nodePath.join('/home/dev', '../other/x'));
+    expect(posix.basename('/a/b/')).toBe('b');
+  });
+});

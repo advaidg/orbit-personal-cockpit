@@ -107,7 +107,7 @@ export function Guard({ onChanged, onNotice }: { onChanged: () => void; onNotice
   return (
     <section aria-labelledby="guard-heading">
       <PageHead eyebrow="AGENTS" title="Stop babysitting your agents.">
-        <span id="guard-heading">Orbit sits between your coding agent and your machine. Safe calls pass silently, dangerous ones wait for a tap on your phone with a plain reason, and everything is recorded. It’s a safety net for overeager agents and honest mistakes, not a sandbox against a malicious one.</span>
+        <span id="guard-heading">Orbit sits between your coding agent and your machine. Safe calls pass silently, dangerous ones wait for a tap on your phone with a plain reason, and everything is recorded. It’s a safety net for overeager agents and honest mistakes, not a sandbox against a malicious one. <a href="/playground.html" target="_blank" rel="noopener noreferrer">Try the judge in a playground</a>.</span>
       </PageHead>
       {overview.error && <p className="error-line">{overview.error}</p>}
       {data && (

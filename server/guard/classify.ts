@@ -244,3 +244,15 @@ export function classify(call: ToolCall, strictness: Strictness): Classification
   const finding = rate(call);
   return { verdict: applyStrictness(finding.severity, strictness), reasons: finding.reasons, category: finding.category };
 }
+
+export interface SegmentExplanation extends Finding { segment: string }
+
+/** Each command a line would run, with how it was rated. Powers the playground's "how it thinks" view. */
+export function explainBash(command: string, cwd: string | undefined): SegmentExplanation[] {
+  const trimmed = command.trim();
+  if (!trimmed) return [];
+  const out: SegmentExplanation[] = splitCommand(trimmed).map((segment) => ({ segment, ...segmentFinding(segment, cwd) }));
+  if (/\|\s*(?:sudo\s+)?(?:sh|bash|zsh|dash|python3?|node|ruby|perl)\b/.test(trimmed)) out.push({ segment: '(piped into a shell)', ...segmentFinding('__pipe_to_shell__', cwd) });
+  if (OBFUSCATED.test(trimmed)) out.push({ segment: '(written to hide what it does)', ...segmentFinding('__obfuscated__', cwd) });
+  return out;
+}

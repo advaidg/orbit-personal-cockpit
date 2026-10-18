@@ -15,6 +15,10 @@ Orbit Guard is a **safety net for overeager agents and honest mistakes**. It is 
 
 It covers what the agent asks to do through its tool-call hook (shell commands, file reads and writes, web fetches, extension tools). It does not see what a script does *after* it starts, which is why running unknown scripts is rated "not known to be safe".
 
+## Try it first
+
+Every Orbit serves a public, client-side playground at `/playground.html`. Type a command (or pick a file to read or edit), choose a strictness, and see exactly what Orbit Guard would do, with a per-command breakdown of how it was read. Nothing leaves your browser, and results have shareable links. The same classifier code runs on the server, so the playground and the real thing agree.
+
 ## Setup (about two minutes)
 
 1. Open **Agents** in Orbit, name your agent, and press **Create access token**. Copy it now: Orbit stores only a fingerprint.
@@ -101,4 +105,19 @@ Events, answered requests and usage are deleted after `RUN_RETENTION_DAYS` (90 b
 - Command analysis is a heuristic. It reads quotes, chains, substitutions and common disguises, but it is not a full shell interpreter.
 - A script you let the agent run can do anything its code does. Orbit rates running an unknown script as not known to be safe.
 - Only agents that offer a tool-call hook can be covered. Claude Code is supported today; other agents need a hook or proxy that calls the same endpoint (`POST /guard/v1/hook` with the same JSON).
-- It was tested end to end with the real hook program against a running Orbit, but not against every version of Claude Code. If a Claude Code update changes the hook format, tell us.
+- It was verified end to end with Claude Code 2.1.302 (see below), but not against other versions. If a Claude Code update changes the hook format, please open an issue.
+
+## Verify it yourself
+
+With an agent token and a settings file that registers the hook, Claude Code's non-interactive mode makes a cheap end-to-end test (it spends a few cents of tokens):
+
+```bash
+cd some-test-repo
+claude -p 'Use the Bash tool to run exactly: git status --short. Reply DONE.' --settings guard-settings.json --model haiku --max-turns 4
+# → passes silently; the Agents page logs it as a silent allow
+
+claude -p 'Use the Bash tool to run exactly: rm -rf ./some-empty-dir. Say whether it ran.' --settings guard-settings.json --model haiku --max-turns 4
+# → the call waits; deny it on the Agents page or your phone and Claude reports it was blocked by the hook
+```
+
+That is exactly how it was checked: a safe call allowed, a risky call held and denied, then the same call approved with *Always allow this here* and allowed silently on the next run. Token use from each session showed up on the agent.

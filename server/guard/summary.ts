@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import path from 'node:path';
+import { basename } from './posix.js';
 import { redact } from '../diagnostics.js';
 import { resolvePath } from './paths.js';
 import type { HookEvent } from './types.js';
@@ -45,4 +45,4 @@ export function summarize(event: HookEvent): string {
   return `${tool}${keys ? ` (${keys})` : ''}`;
 }
 
-export const projectLabel = (cwd: string | undefined): string | undefined => (cwd ? path.posix.basename(cwd.replace(/\/+$/, '')) || undefined : undefined);
+export const projectLabel = (cwd: string | undefined): string | undefined => (cwd ? basename(cwd) || undefined : undefined);

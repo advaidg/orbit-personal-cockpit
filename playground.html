@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10130f" />
+    <meta name="description" content="Type a command an AI coding agent might run and see what Orbit Guard would do: pass it silently, ask your phone, or refuse it. Runs entirely in your browser." />
+    <meta property="og:title" content="What would Orbit Guard do with this command?" />
+    <meta property="og:description" content="A permission layer for coding agents. Try a command: it runs entirely in your browser." />
+    <link rel="icon" type="image/svg+xml" href="/brand/orbit-mark.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <title>Would Orbit Guard stop this? — Orbit</title>
+    <style>
+      :root { --bg:#10130f; --panel:#161b13; --line:#2c3328; --text:#ecf0e4; --soft:#a3ac98; --acid:#c8f060; --warn:#f0c14b; --bad:#ff8a70; --good:#8fd694; --info:#7cc4ff; }
+      * { box-sizing: border-box; }
+      body { margin:0; background:radial-gradient(1200px 500px at 50% -120px,#1f2a17,transparent),var(--bg); color:var(--text); font:16px/1.55 Manrope,system-ui,sans-serif; min-height:100vh; }
+      main { max-width:860px; margin:0 auto; padding:34px 18px 60px; }
+      .mark { display:flex; align-items:center; gap:10px; font:600 12px/1 'DM Mono',ui-monospace,monospace; letter-spacing:.2em; color:var(--soft); text-transform:uppercase; }
+      .mark img { width:24px; height:24px; }
+      h1 { font-size:clamp(30px,6vw,48px); line-height:1.05; letter-spacing:-.025em; margin:22px 0 10px; font-weight:800; }
+      h1 em { font-style:normal; color:var(--acid); }
+      .lede { color:var(--soft); max-width:62ch; margin:0 0 26px; }
+      .box { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px; }
+      .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+      label.cap { font:500 11px 'DM Mono',monospace; letter-spacing:.12em; text-transform:uppercase; color:var(--soft); display:block; margin:0 0 8px; }
+      textarea,input[type=text] { width:100%; background:#0b0e0a; color:var(--text); border:1px solid var(--line); border-radius:12px; padding:14px 16px; font:500 15px/1.5 'DM Mono',ui-monospace,monospace; resize:vertical; }
+      textarea:focus,input:focus { outline:2px solid var(--acid); outline-offset:1px; }
+      .seg { display:inline-flex; background:#0b0e0a; border:1px solid var(--line); border-radius:12px; padding:3px; gap:2px; }
+      .seg button { border:0; background:transparent; color:var(--soft); padding:8px 14px; border-radius:9px; font:600 13px Manrope,sans-serif; cursor:pointer; }
+      .seg button[aria-checked=true] { background:#24301b; color:var(--acid); }
+      .chips { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 0; }
+      .chip { border:1px solid var(--line); background:#0f130d; color:var(--soft); padding:7px 11px; border-radius:999px; font:500 12px 'DM Mono',monospace; cursor:pointer; }
+      .chip:hover,.chip:focus-visible { color:var(--text); border-color:#4a5a3a; outline:none; }
+      .verdict { margin-top:18px; border-radius:18px; padding:22px 22px 18px; border:1px solid; }
+      .verdict h2 { margin:0 0 4px; font-size:26px; letter-spacing:-.015em; display:flex; align-items:center; gap:12px; }
+      .verdict .big { font-size:34px; line-height:1; }
+      .verdict p { margin:0; color:var(--soft); }
+      .v-allow { background:#122015; border-color:#2c5a34; } .v-allow h2 { color:var(--good); }
+      .v-ask { background:#231d0d; border-color:#6b5a2a; } .v-ask h2 { color:var(--warn); }
+      .v-deny { background:#251210; border-color:#7a3b30; } .v-deny h2 { color:var(--bad); }
+      .v-defer { background:#111b24; border-color:#2f5170; } .v-defer h2 { color:var(--info); }
+      ul.reasons { margin:14px 0 0; padding:0; list-style:none; display:grid; gap:6px; }
+      ul.reasons li { padding:9px 12px; background:#0b0e0a99; border-radius:10px; font-size:14px; }
+      h3 { margin:26px 0 10px; font:600 12px 'DM Mono',monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--soft); }
+      .segs { display:grid; gap:8px; }
+      .seg-row { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; padding:10px 12px; background:var(--panel); border:1px solid var(--line); border-radius:12px; }
+      .seg-row code { font:500 13px 'DM Mono',monospace; overflow-wrap:anywhere; }
+      .seg-row small { display:block; color:var(--soft); margin-top:2px; }
+      .tag { font:600 11px 'DM Mono',monospace; padding:3px 8px; border-radius:6px; text-transform:uppercase; letter-spacing:.06em; white-space:nowrap; }
+      .t-allow { background:#173a20; color:var(--good); } .t-soft { background:#1b2a38; color:var(--info); } .t-ask { background:#3a2f12; color:var(--warn); } .t-deny { background:#43211b; color:var(--bad); }
+      .btn { border:1px solid var(--line); background:#1c2317; color:var(--text); padding:9px 14px; border-radius:10px; font:600 13px Manrope,sans-serif; cursor:pointer; }
+      .btn:hover,.btn:focus-visible { border-color:#6b8450; outline:none; }
+      .cta { margin-top:34px; padding:20px; border:1px dashed #3b4536; border-radius:16px; display:flex; gap:16px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+      .cta a { background:var(--acid); color:#10130f; text-decoration:none; font-weight:700; padding:11px 18px; border-radius:11px; }
+      .foot { margin-top:22px; color:var(--soft); font-size:13px; }
+      .foot a { color:var(--text); }
+      @media (prefers-reduced-motion: no-preference) { .verdict { transition: background .2s, border-color .2s; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="mark"><img src="/brand/orbit-mark.svg" alt="" /> Orbit Guard · playground</div>
+      <h1>Would Orbit Guard <em>stop</em> this?</h1>
+      <p class="lede">Coding agents ask “can I run this?” all day. Orbit Guard answers the safe ones silently, sends the risky ones to your phone, and refuses the catastrophic ones. Type something an agent might run. This page runs entirely in your browser; nothing is sent anywhere.</p>
+
+      <div class="box">
+        <div class="row" style="justify-content:space-between;margin-bottom:12px">
+          <div class="seg" role="radiogroup" aria-label="What the agent wants to do" id="tool">
+            <button type="button" role="radio" aria-checked="true" data-tool="Bash">Run a command</button>
+            <button type="button" role="radio" aria-checked="false" data-tool="Read">Read a file</button>
+            <button type="button" role="radio" aria-checked="false" data-tool="Edit">Edit a file</button>
+          </div>
+          <div class="seg" role="radiogroup" aria-label="How strict Orbit is" id="strict">
+            <button type="button" role="radio" aria-checked="false" data-strict="relaxed">Relaxed</button>
+            <button type="button" role="radio" aria-checked="true" data-strict="balanced">Balanced</button>
+            <button type="button" role="radio" aria-checked="false" data-strict="strict">Strict</button>
+          </div>
+        </div>
+        <label class="cap" for="input" id="cap">Command</label>
+        <textarea id="input" rows="3" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="git push --force origin main"></textarea>
+        <div class="chips" id="chips" aria-label="Examples"></div>
+      </div>
+
+      <div id="result" aria-live="polite"></div>
+
+      <div class="row" style="margin-top:16px">
+        <button class="btn" type="button" id="share">Copy a link to this</button>
+        <span id="shared" class="foot" role="status"></span>
+      </div>
+
+      <div class="cta">
+        <div><strong>Put this between Claude Code and your machine.</strong><br /><span class="foot">Self-hosted and open source. Your phone gets the approvals. About two minutes to connect.</span></div>
+        <a href="https://github.com/advaidg/orbit-personal-cockpit#orbit-guard-a-permission-layer-for-coding-agents">Get Orbit Guard</a>
+      </div>
+      <p class="foot">This is a safety net for overeager agents and honest mistakes, <b>not a sandbox</b>. Command analysis is a heuristic, and a determined malicious process can find ways around any filter. <a href="https://github.com/advaidg/orbit-personal-cockpit/blob/main/docs/GUARD.md">Read the limits.</a></p>
+    </main>
+    <script type="module" src="/src/playground/main.ts"></script>
+  </body>
+</html>
