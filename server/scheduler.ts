@@ -12,6 +12,7 @@ import { dismissReminder, dueReminders, markReminderFired } from './agent/remind
 import { pruneRuns } from './agent/runs.js';
 import { getAgentSettings } from './agent/settings.js';
 import { announcePendingProposals } from './telegram/poller.js';
+import { ownersWithAgents, pruneGuard, sendGuardDigests } from './guard/digest.js';
 import { federation } from './federation/identity.js';
 
 export interface TickSummary {
@@ -79,6 +80,7 @@ export async function tick(now = new Date()): Promise<TickSummary> {
   const limits = agentLimits();
   const automationsRun = limits.enabled && limits.automationsEnabled ? await runDueAutomations(now).catch((error) => (logSafe('automations', error), 0)) : 0;
   const syncsQueued = await enqueueDueSyncs(now).catch((error) => (logSafe('sync scheduling', error), 0));
+  if (limits.enabled) await ownersWithAgents().then((owners) => sendGuardDigests(owners, now)).catch((error) => logSafe('guard digest', error));
   const telegramAnnounced = limits.enabled ? await announcePendingProposals(now).catch((error) => (logSafe('telegram announce', error), 0)) : 0;
   return { remindersFired: reminders.fired, remindersDismissed: reminders.dismissed, snoozesWoken, automationsRun, syncsQueued, telegramAnnounced };
 }
@@ -91,6 +93,7 @@ export async function housekeeping(now = new Date()): Promise<void> {
   await pruneMemories();
   await notifications.pruneBefore(new Date(now.getTime() - 30 * 86_400_000));
   // Replay markers only matter inside the five-minute clock window; keep a day for safety.
+  await pruneGuard(now).catch((error) => logSafe('guard retention', error));
   await federation.pruneBefore(new Date(now.getTime() - 86_400_000), { kind: 'seen' });
 }
 

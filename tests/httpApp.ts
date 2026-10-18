@@ -8,6 +8,8 @@ import { channelsRouter } from '../server/api/channels.js';
 import { sendFailure } from '../server/api/http.js';
 import { setupRouter } from '../server/api/setup.js';
 import { chatgptCallbackRouter } from '../server/oauth/callbackRouter.js';
+import { guardRouter } from '../server/api/guard.js';
+import { guardPublicRouter } from '../server/guard/router.js';
 
 export interface TestServer {
   url: string;
@@ -18,6 +20,7 @@ export interface TestServer {
 export async function startApp(ownerId: string): Promise<TestServer> {
   const app = express();
   app.use(chatgptCallbackRouter());
+  app.use(guardPublicRouter());
   app.use('/p', publicPactRouter());
   app.use(federationPublicRouter());
   app.use(express.json());
@@ -26,6 +29,7 @@ export async function startApp(ownerId: string): Promise<TestServer> {
   app.use('/api/federation', owner, federationRouter);
   app.use('/api/channels', owner, channelsRouter);
   app.use('/api/setup', owner, setupRouter);
+  app.use('/api/guard', owner, guardRouter);
   app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     try { sendFailure(res, error); } catch { res.status(500).json({ error: 'unexpected' }); }
   });

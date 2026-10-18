@@ -24,3 +24,7 @@ Three paths accept requests without a dashboard session. Report any weakness in 
 - Telegram long-polling accepts input only from a private chat linked with a single-use code.
 
 See [docs/PACTS.md](docs/PACTS.md) for the threat model in plain language.
+
+## Orbit Guard
+
+`POST /guard/v1/hook` accepts requests from coding agents, authenticated by a per-agent bearer token (stored only as a hash, revocable, rate limited). Every failure path answers "no opinion", and the only way a risky call is approved is the owner's own tap. Details and limits: [docs/GUARD.md](docs/GUARD.md). Please report any way to make the endpoint approve something it should not, leak a token, or hang the server.

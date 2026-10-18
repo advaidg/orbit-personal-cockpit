@@ -12,6 +12,7 @@ import { applyAction, createPact, listPacts, shareMessage } from '../pacts/servi
 import { getUser } from '../store.js';
 import { telegramApi, type Button, type TelegramApi, type TelegramUpdate } from './api.js';
 import { consumeLinkCode, ownerForChat, unlink } from './link.js';
+import { resolveRequest } from '../guard/engine.js';
 
 const HELP = [
   'Orbit, from your pocket.',
@@ -153,6 +154,13 @@ async function handleCallback(api: TelegramApi, userId: string, chatId: string, 
       await rejectProposal(userId, id, 'Rejected from Telegram');
       await api.answerCallback(callbackId, 'Rejected');
       return api.send(chatId, 'Rejected. Nothing was done.');
+    }
+    if (kind === 'ga' || kind === 'gA' || kind === 'gd') {
+      const decision = kind === 'gd' ? 'denied' : 'approved';
+      const done = await resolveRequest(userId, id, decision, { remember: kind === 'gA' });
+      if (!done) return api.answerCallback(callbackId, 'Already answered, or it timed out.');
+      await api.answerCallback(callbackId, decision === 'approved' ? (done.remembered ? 'Approved — remembered here' : 'Approved') : 'Denied');
+      return api.send(chatId, decision === 'approved' ? `✅ Approved. ${done.agentName} continues.${done.remembered ? ' I’ll allow this exact call in this project from now on.' : ''}` : `⛔ Denied. ${done.agentName} was told no.`);
     }
     if (kind === 'pd') {
       await applyAction(userId, id, 'owner', 'done');

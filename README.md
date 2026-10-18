@@ -3,24 +3,68 @@
   <img src="public/brand/orbit-lockup-light.svg" alt="Orbit" width="560">
 </picture>
 
-# Orbit — the personal agent that keeps promises
+# Orbit — stop babysitting your AI agents
 
-**Your own AI chief of staff, running in *your* cloud. It reads your mail, remembers who owes whom, drafts the follow-ups, and asks before it does anything. And it is the first agent that works *with the other person*, not just for you.**
+**Your coding agent asks "can I run this?" a hundred times a day, so you stop reading and click Yes. Orbit sits between the agent and your machine: safe calls pass silently, dangerous ones wait for one tap on your phone with a plain-English reason, and everything is recorded. Self-hosted, open source, two minutes to connect.**
 
 [![MIT](https://img.shields.io/badge/license-MIT-c8f060?style=flat-square)](LICENSE)
 [![Self-hosted](https://img.shields.io/badge/self--hosted-your%20cloud%2C%20your%20data-1d1a16?style=flat-square)](#install-it-in-your-own-cloud)
-[![Tests](https://img.shields.io/badge/tests-291%20passing-2f6b4f?style=flat-square)](#how-its-built)
+[![Tests](https://img.shields.io/badge/tests-434%20passing-2f6b4f?style=flat-square)](#how-its-built)
 [![No sending](https://img.shields.io/badge/email%20sending-impossible%20by%20design-b4411f?style=flat-square)](#safety-you-can-verify)
 
 <p align="center">
-  <img src="docs/images/pacts.jpg" alt="Orbit's Pacts screen: open promises with the other person's reply" width="860">
+  <img src="docs/images/guard-waiting.jpg" alt="Orbit Agents: a force-push and a read of .env waiting for approval, with the reasons Orbit stopped them" width="860">
 </p>
 
 > **Nothing here runs on my servers.** Orbit is a project you deploy to Railway, a $5 VPS, or `docker compose` on any machine. One person, one install, one database that only you own.
 
 ---
 
-## The idea: pacts
+## Orbit Guard: a permission layer for coding agents
+
+Developers using Claude Code and similar agents hit the same wall: approve everything and stop paying attention, or turn the prompts off and hope. Orbit replaces both with a policy.
+
+| The agent wants to… | Orbit does |
+| --- | --- |
+| `git status`, `npm test`, read or edit a file in the project | **Lets it through silently.** No prompt, no waiting. |
+| `git push --force origin main`, `rm -rf dist`, `vercel --prod`, read `.env`, `curl -d … https://outside` | **Buzzes your phone** with the exact command, the project, and why it's risky. *Approve · Always allow this here · Deny*. |
+| `rm -rf /`, format a disk, a fork bomb | **Refuses.** No rule can override it. |
+| Something it doesn't recognise | Depends on your strictness: hand back to the agent's own prompt (default), run it, or ask your phone. |
+
+On top of that:
+
+- **Budgets.** Cap an agent's daily token use; it is stopped before the bill surprises you. Optional dollar view.
+- **A flight recorder.** A readable log of every call and why Orbit decided what it did, with secrets redacted and file contents never stored.
+- **An evening summary.** *"214 tool calls: 198 passed silently, 14 needed you, 2 refused. You were asked about `git push` 6 times."* That last line is how you tune your rules.
+- **Your own rules**, with a **"What would Orbit do?"** box so you can test a command without running it.
+- **Fails safe.** If Orbit is unreachable, Claude Code simply asks you itself. An outage never becomes "allow".
+
+<p align="center">
+  <img src="docs/images/guard-agents.jpg" alt="Orbit Agents: per-agent token budgets, strictness, and the activity log" width="860">
+</p>
+
+### Connect Claude Code in two minutes
+
+1. In Orbit open **Agents**, name your agent, and copy the token (shown once).
+2. On your machine:
+
+   ```bash
+   mkdir -p ~/.orbit && curl -fsSL https://YOUR-ORBIT/guard/hook.mjs -o ~/.orbit/orbit-guard.mjs
+   export ORBIT_URL=https://YOUR-ORBIT ORBIT_GUARD_TOKEN=og_...
+   ```
+
+3. Add one `PreToolUse` hook to `~/.claude/settings.json` (Orbit shows the exact JSON).
+4. Link Telegram in **Connections → Set up Orbit** so approvals reach your phone.
+
+It's a safety net for overeager agents and honest mistakes, **not a sandbox**: a determined malicious process can get around any command filter, so run untrusted agents in a container too. Details, limits and the full list of what it stops: **[docs/GUARD.md](docs/GUARD.md)**.
+
+---
+
+## And the rest of Orbit: promises between people
+
+The same approval-first engine runs a personal operations agent: it reads your mail, tracks who owes what, and drafts the follow-ups. Its best idea is the **pact**.
+
+### The idea: pacts
 
 Every personal-agent demo ends the same way: *it did a thing for me.* But most of what slips through the cracks isn't a task. It's a **promise between two people**:
 
@@ -50,12 +94,21 @@ npm install
 DEMO_MODE=true npm run dev       # sample data, clearly labelled, nothing connected
 ```
 
-Open <http://localhost:5173>. Go to **Pacts → Make a pact**, copy the link into another browser tab, and answer as the other person.
+Open <http://localhost:5173>. Go to **Agents → Connect an agent**, then try the **What would Orbit do?** box with `git push --force` and `git status`. Or go to **Pacts → Make a pact**, copy the link into another browser tab, and answer as the other person.
+
+To see Guard end to end locally, create an agent, then ask it a question yourself:
+
+```bash
+curl -s localhost:3000/guard/v1/hook -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"hook_event_name":"PreToolUse","cwd":"/tmp/app","tool_name":"Bash","tool_input":{"command":"git push --force origin main"}}'
+# the request waits, a card appears on the Agents page; approve it and the curl returns the allow decision
+```
 
 ## What you get
 
 | | |
 | --- | --- |
+| **Agent Guard** | Permission layer for coding agents: silent for safe, phone approval for risky, budgets, audit log, evening summary. |
 | **Pacts** | Private one-tap links; replies update Waiting On; Orbit-to-Orbit sharing between installs. |
 | **Waiting On** | Finds promises and requests in your Gmail with deterministic rules (not vibes), suggests when to follow up, and drafts the nudge. |
 | **Approval Center** | Every action Orbit proposes shows *what changes, why, and what leaves your install*, and waits for you. Edit it, approve it, reject it, or undo it. |
@@ -96,7 +149,9 @@ Orbit long-polls Telegram, so there is **no webhook to configure**. Only a priva
 
 ## Safety you can verify
 
-An agent that touches your inbox has to earn trust. These aren't promises in a README; each is enforced in code and covered by tests.
+An agent that touches your inbox or your machine has to earn trust. These aren't promises in a README; each is enforced in code and covered by tests.
+
+- **Guard fails safe.** Every error or outage in the guard answers "no opinion" (Claude Code asks you itself), never "allow". Waiting requests are capped, tokens are stored as hashes, anything inside a tool call is untrusted text that only your tap can approve, and rule matching runs in linear time so no pattern can hang the server.
 
 - **Orbit cannot send email. There is no send code path.** The Gmail gateway exposes only “read headers” and “create / read / delete a draft”. *(Honest footnote: Google has no draft-only OAuth scope, so the permission Google shows you technically also covers sending. Orbit just contains no code that does it, and says so on the Connections page.)*
 - **The model never acts; it only asks.** Model output can only request *typed tools*. Each request is validated, authorized, previewed and policy-checked before anything runs, and each action runs exactly once.
@@ -186,10 +241,12 @@ npm run check     # strict type-check: app, server, tests
 
 ## Status — read this before you rely on it
 
-Orbit is **early software, built in the open**. The core is solid: 291 automated tests covering the approval flow, policy, idempotency, retries, prompt-injection handling, cross-account isolation, pact links, federation signing/replay/forgery, and Telegram linking. But the integrations that need *your* accounts (real Google OAuth, a real Telegram bot, a second real Orbit install) are exercised in CI through fakes. **Try it on a throwaway Gmail first and [open an issue](https://github.com/advaidg/orbit-personal-cockpit/issues) when something is off.**
+Orbit is **early software, built in the open**. The core is solid: 434 automated tests covering Agent Guard (including the real hook program run against a live server), the approval flow, policy, idempotency, retries, prompt-injection handling, cross-account isolation, pact links, federation signing/replay/forgery, and Telegram linking. But the integrations that need *your* accounts (real Google OAuth, a real Telegram bot, a second real Orbit install) are exercised in CI through fakes, and Guard has been tested with simulated Claude Code hook events and the real hook program, not yet across many Claude Code versions. **Try it on a throwaway Gmail first and [open an issue](https://github.com/advaidg/orbit-personal-cockpit/issues) when something is off.**
 
 Known limits, stated plainly:
 
+- Guard covers agents that offer a tool-call hook. Claude Code is supported today; others need a hook that calls the same endpoint.
+- Guard's command analysis is a heuristic, not a sandbox (see [docs/GUARD.md](docs/GUARD.md)).
 - Browser notifications work while Orbit is open (no Web Push yet). Telegram covers the rest.
 - Only one running instance should poll a given Telegram bot.
 - Gmail is the first connector; Outlook, GitHub, Slack and others are on the roadmap.
@@ -197,7 +254,7 @@ Known limits, stated plainly:
 
 ## Roadmap
 
-Pacts → shared **recurring** pacts · WhatsApp/iMessage channel · Outlook · Slack/Linear connectors · skill packs you can share · Web Push. The longer product thesis is in [docs/PRODUCT_VISION.md](docs/PRODUCT_VISION.md).
+Guard → hooks for more agents (Cursor, Codex, Gemini CLI) · per-project policies · "explain this diff" on approval cards · shared team policies. Pacts → shared **recurring** pacts · WhatsApp/iMessage channel · Outlook · Slack/Linear connectors · skill packs you can share · Web Push. The longer product thesis is in [docs/PRODUCT_VISION.md](docs/PRODUCT_VISION.md).
 
 ## Contributing
 

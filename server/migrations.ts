@@ -28,7 +28,10 @@ const PACT_TABLES = ['pacts', 'federation', 'channel_links'] as const;
 /** Added in migration 5: credentials and switches the owner sets from the Setup screen, encrypted at rest. */
 const CONFIG_TABLES = ['installation_config'] as const;
 
-export const COLLECTION_TABLES = [...BASE_TABLES, ...PACT_TABLES, ...CONFIG_TABLES] as const;
+/** Added in migration 6: Orbit Guard, the permission layer for coding agents. */
+const GUARD_TABLES = ['guard_agents', 'guard_rules', 'guard_requests', 'guard_events', 'guard_usage', 'guard_config'] as const;
+
+export const COLLECTION_TABLES = [...BASE_TABLES, ...PACT_TABLES, ...CONFIG_TABLES, ...GUARD_TABLES] as const;
 
 export type CollectionTable = (typeof COLLECTION_TABLES)[number];
 
@@ -125,6 +128,11 @@ export const migrations: Migration[] = [
     version: 5,
     name: 'installation config set from the UI',
     sql: CONFIG_TABLES.map(collectionDdl).join('\n')
+  },
+  {
+    version: 6,
+    name: 'orbit guard: agents, rules, requests, events and usage',
+    sql: GUARD_TABLES.map(collectionDdl).join('\n')
   }
 ];
 

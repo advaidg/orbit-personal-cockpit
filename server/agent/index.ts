@@ -5,6 +5,7 @@ import { registerLocalTools } from './tools/local.js';
 import { registerNotifyTools } from './tools/notify.js';
 import { registerSkillAdminTools } from './tools/skillAdmin.js';
 import { initPacts } from '../pacts/index.js';
+import { initGuard } from '../guard/index.js';
 
 let initialized = false;
 
@@ -18,5 +19,6 @@ export function initAgent(): void {
   registerSkillAdminTools();
   registerAgentJobs();
   initPacts();
+  initGuard();
   initialized = true;
 }

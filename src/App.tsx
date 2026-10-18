@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, Brain, Handshake, CalendarDays, Check, ChevronRight, CircleDollarSign, Clock3, GitBranch, Inbox, LayoutDashboard, Mail, Menu, MessageSquare, Pause, Plane, Plug, Play, Plus, RefreshCw, Search, Settings, ShieldCheck, Sparkles, UserRound, Workflow, X, Zap } from 'lucide-react';
+import { Activity, Bot, Brain, Handshake, CalendarDays, Check, ChevronRight, CircleDollarSign, Clock3, GitBranch, Inbox, LayoutDashboard, Mail, Menu, MessageSquare, Pause, Plane, Plug, Play, Plus, RefreshCw, Search, Settings, ShieldCheck, Sparkles, UserRound, Workflow, X, Zap } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { AgentState, AiProvider, Connection, Dashboard, JobInfo, Priority, Signal, Source, Task } from './types';
 import { api } from './api';
@@ -11,6 +11,7 @@ import { Automations } from './features/Automations';
 import { Connections } from './features/Connections';
 import { ErrorBoundary } from './features/ErrorBoundary';
 import { GettingStarted } from './features/GettingStarted';
+import { Guard } from './features/Guard';
 import { Inbox as InboxView } from './features/Inbox';
 import { Memory } from './features/Memory';
 import { Pacts } from './features/Pacts';
@@ -47,7 +48,7 @@ function DashboardApp() {
   const [showAllSignals, setShowAllSignals] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<Source|null>(null);
   const [hash,setHash]=useHash();
-  const view=(['focus','inbox','waiting','pacts','approvals','automations','memory','runs','connections'] as const).find(name=>hash===name||hash.startsWith(`${name}/`))||'focus';
+  const view=(['focus','inbox','waiting','pacts','guard','approvals','automations','memory','runs','connections'] as const).find(name=>hash===name||hash.startsWith(`${name}/`))||'focus';
   const focusId=hash.startsWith('inbox/')?hash.slice(6):undefined;
   const agentState=useLoad(()=>api.get<AgentState>('/api/agent/state'));
   const agent=agentState.data;
@@ -118,6 +119,7 @@ function DashboardApp() {
         {navItem('focus',LayoutDashboard,'Focus',data.tasks.filter(t=>t.status==='open').length||undefined)}
         {navItem('waiting',Clock3,'Waiting On',data.agent.openCommitments||undefined)}
         {navItem('pacts',Handshake,'Pacts')}
+        {navItem('guard',Bot,'Agents')}
         {navItem('approvals',ShieldCheck,'Approvals',data.agent.pendingApprovals||undefined,data.agent.pendingApprovals>0)}
         {navItem('automations',Workflow,'Automations')}
         {navItem('memory',Brain,'Memory')}
@@ -155,6 +157,7 @@ function DashboardApp() {
         {view==='inbox'&&<InboxView signals={data.signals} query={query} canDraft={!!agent?.gmail.canDraft&&agent.settings.gmailAccess==='drafts'} focusId={focusId} onChanged={refreshAll} onNotice={notify} onOpenApprovals={()=>go('approvals')}/>}
         {view==='waiting'&&<WaitingOn onChanged={refreshAll} onNotice={notify} onOpenApprovals={()=>go('approvals')}/>}
         {view==='pacts'&&<Pacts onChanged={refreshAll} onNotice={notify}/>}
+        {view==='guard'&&<Guard onChanged={refreshAll} onNotice={notify}/>}
         {view==='approvals'&&<ApprovalCenter agent={agent} onChanged={refreshAll} onNotice={notify} onOpenSignal={openSignal} onOpenSettings={()=>setSettingsOpen(true)}/>}
         {view==='automations'&&<Automations timezone={agent?.settings.timezone||'UTC'} onChanged={refreshAll} onNotice={notify}/>}
         {view==='memory'&&<Memory onNotice={notify}/>}

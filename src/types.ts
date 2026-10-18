@@ -82,3 +82,13 @@ export interface SetupStatus {
   };
   federation: { enabled: boolean; source: SetupSource; address?: string; canEnable: boolean; blocker?: string };
 }
+
+export type GuardVerdict = 'allow' | 'ask' | 'deny' | 'defer';
+export interface GuardAgent { id: string; name: string; kind: string; tokenHint: string; paused: boolean; lastSeenAt?: string; dailyTokenBudget?: number | null; usage: { totals: { input: number; output: number; cacheRead: number; cacheWrite: number }; weighted: number; costUsd: number | null } }
+export interface GuardRequestInfo { id: string; agentName: string; tool: string; summary: string; project?: string; reasons: string[]; category: string; status: 'pending' | 'approved' | 'denied' | 'expired'; expiresAt: string; createdAt: string; remembered?: boolean; hasCwd?: boolean }
+export interface GuardEventInfo { id: string; agentName: string; tool: string; summary: string; project?: string; category: string; reasons: string[]; verdict: GuardVerdict; decidedBy: string; waitedMs: number; createdAt: string }
+export interface GuardRuleInfo { id: string; tool: string; match: 'exact' | 'glob'; value: string; project?: string; action: 'allow' | 'ask' | 'deny'; note?: string; hits: number; lastHitAt?: string; exactHash?: boolean }
+export interface GuardSettingsInfo { strictness: 'relaxed' | 'balanced' | 'strict'; waitSeconds: number; onTimeout: 'defer' | 'deny'; dailyDigest: boolean; usdPerMillion?: { input: number; output: number; cacheRead: number; cacheWrite: number } | null }
+export interface GuardInstall { url: string; scriptUrl: string; timeoutSeconds: number; download: string; env: string[]; settings: string }
+export interface GuardDayStats { total: number; allowed: number; asked: number; approved: number; denied: number; deferred: number; blocked: number; waitedSeconds: number; topAsked: Array<{ summary: string; count: number }> }
+export interface GuardOverview { settings: GuardSettingsInfo; agents: GuardAgent[]; pending: GuardRequestInfo[]; today: GuardDayStats; day: string; install: GuardInstall }
